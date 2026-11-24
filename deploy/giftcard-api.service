@@ -1,0 +1,21 @@
+[Unit]
+Description=Gift Card POS API
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=giftcard
+Group=giftcard
+WorkingDirectory=/opt/giftcard/api
+EnvironmentFile=/opt/giftcard/api/.env
+ExecStart=/usr/bin/node dist/src/server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

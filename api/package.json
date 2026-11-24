@@ -15,6 +15,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:embedded": "tsx scripts/embedded-db.ts",
     "db:restore": "tsx scripts/restore.ts",
+    "setup:owner": "tsx scripts/create-owner.ts",
     "jobs:expire": "tsx scripts/run-job.ts expire",
     "jobs:nightly": "tsx scripts/run-job.ts nightly",
     "test": "vitest run",
