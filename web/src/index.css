@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation; /* no double-tap zoom on POS tablets */
+  }
+  :focus-visible {
+    outline: 3px solid theme('colors.brand.500');
+    outline-offset: 2px;
+  }
+  input[type='checkbox'] {
+    accent-color: theme('colors.brand.600');
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Thermal-receipt printing (browser / AirPrint mode) */
+#print-receipt {
+  display: none;
+}
+@media print {
+  @page {
+    margin: 0;
+  }
+  body > *:not(#print-receipt) {
+    display: none !important;
+  }
+  #print-receipt {
+    display: block;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 12px;
+    color: #000;
+    padding: 2mm 4mm;
+  }
+  /* Scale the barcode SVG to its mm box, keeping proportions */
+  #print-receipt .receipt-barcode svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  #print-receipt hr {
+    border: 0;
+    border-top: 1px dashed #000;
+    margin: 4px 0;
+  }
+}

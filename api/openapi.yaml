@@ -1,0 +1,729 @@
+openapi: 3.1.0
+info:
+  title: Gift Card POS API
+  version: 1.0.0
+  description: |
+    REST API for the Amazing Salon gift card POS.
+
+    **Money** is always integer **cents** (`*_cents`). Never floats.
+
+    **Auth**: `Authorization: Bearer <session JWT>` from `/auth/login` or `/auth/pin-login`,
+    plus `X-Terminal-Key` (per-device key) when the server runs with `REQUIRE_TERMINAL_KEY=true`.
+
+    **Idempotency**: every POST/PUT/PATCH/DELETE under the staff API requires an
+    `Idempotency-Key` header (8–64 chars). Same key + same body replays the stored
+    2xx response (`Idempotent-Replay: true`); same key + different body → 409.
+
+    **Manager step-up**: some routes answer `403 APPROVAL_REQUIRED`. Call
+    `/auth/approve` with a manager PIN, then retry the *same request with the same
+    Idempotency-Key* plus `X-Approval-Token`.
+
+    **Errors** are `application/problem+json`: `{status, code, message, field?, details?}`.
+servers:
+  - url: http://localhost:4000/api/v1
+security:
+  - bearer: []
+    terminalKey: []
+
+tags:
+  - name: Auth
+  - name: Cards
+  - name: Card money
+  - name: History
+  - name: Customers
+  - name: Dashboard
+  - name: Settings
+  - name: Import & data
+  - name: Kiosk
+
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+    terminalKey: { type: apiKey, in: header, name: X-Terminal-Key }
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 64, pattern: '^[A-Za-z0-9_\-:.]+$' }
+    ApprovalToken:
+      name: X-Approval-Token
+      in: header
+      required: false
+      description: Short-lived token from POST /auth/approve (manager step-up / dual control).
+      schema: { type: string }
+    CardId:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+
+  responses:
+    Problem:
+      description: Error
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    Problem:
+      type: object
+      required: [status, code, message]
+      properties:
+        status: { type: integer, example: 422 }
+        code:
+          type: string
+          enum: [VALIDATION, BAD_JSON, UNAUTHENTICATED, SESSION_INVALID, TERMINAL_REQUIRED, TERMINAL_INVALID, FORBIDDEN,
+                 APPROVAL_REQUIRED, APPROVAL_INVALID, PIN_INVALID, PIN_LOCKED, LOGIN_INVALID, NOT_FOUND, CARD_NOT_FOUND,
+                 INSUFFICIENT_FUNDS, CARD_FROZEN, CARD_EXPIRED, CARD_VOIDED, STATE_CONFLICT, ALREADY_REVERSED,
+                 IDEMPOTENCY_KEY_REQUIRED, IDEMPOTENCY_CONFLICT, IDEMPOTENCY_IN_PROGRESS, DUPLICATE, RATE_LIMITED,
+                 KIOSK_LOOKUP_FAILED, GATEWAY_NOT_CONFIGURED, PRINT_FAILED, DELIVERY_FAILED, CSV_INVALID, INTERNAL]
+        message: { type: string, example: 'Insufficient: $22.00 available' }
+        field: { type: string, example: amount_cents }
+        details: { type: object, additionalProperties: true, example: { available_cents: 2200, requested_cents: 2500 } }
+
+    CardStatus:
+      type: string
+      enum: [PENDING_ACTIVATION, ACTIVE, PARTIALUSED, CLOSED, FROZEN, EXPIRED, VOIDED, LOST_REPLACED]
+    TxnType:
+      type: string
+      enum: [ISSUE, ACTIVATE, RELOAD, REDEEM, REFUND_TO_CARD, TIP_FROM_CARD, ADJUSTMENT, TRANSFER_OUT, TRANSFER_IN,
+             MERGE_OUT, MERGE_IN, VOID, EXPIRE, REPLACE_OUT, REPLACE_IN, REVERSAL]
+
+    Tag:
+      type: object
+      properties: { id: { type: integer }, name: { type: string }, color: { type: string } }
+
+    CustomerRef:
+      type: [object, 'null']
+      properties:
+        id: { type: integer }
+        first_name: { type: [string, 'null'] }
+        last_name: { type: [string, 'null'] }
+        phone: { type: [string, 'null'] }
+        email: { type: [string, 'null'] }
+        erased: { type: boolean }
+
+    Card:
+      type: object
+      properties:
+        id: { type: integer, example: 4 }
+        card_number: { type: string, example: '3460010' }
+        status: { $ref: '#/components/schemas/CardStatus' }
+        balance_cents: { type: integer, example: 50000 }
+        face_value_cents: { type: integer, example: 50000 }
+        currency: { type: string, example: USD }
+        label: { type: [string, 'null'] }
+        color_tag: { type: [string, 'null'] }
+        issue_channel: { type: string, enum: [POS, KIOSK, ONLINE, IMPORT] }
+        activation_date: { type: [string, 'null'], format: date-time }
+        expires_at: { type: [string, 'null'], format: date-time }
+        last_used_at: { type: [string, 'null'], format: date-time }
+        frozen_at: { type: [string, 'null'], format: date-time }
+        freeze_reason: { type: [string, 'null'] }
+        voided_at: { type: [string, 'null'], format: date-time }
+        void_reason: { type: [string, 'null'] }
+        replaced_by_card_id: { type: [integer, 'null'] }
+        notes: { type: [string, 'null'] }
+        has_pin: { type: boolean }
+        archived_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        customer: { $ref: '#/components/schemas/CustomerRef' }
+        tags: { type: array, items: { $ref: '#/components/schemas/Tag' } }
+
+    Transaction:
+      type: object
+      properties:
+        id: { type: integer }
+        card_id: { type: integer }
+        txn_type: { $ref: '#/components/schemas/TxnType' }
+        amount_cents: { type: integer, description: 'Signed: + credit / − debit', example: -2000 }
+        balance_after_cents: { type: integer, example: 2200 }
+        memo: { type: [string, 'null'] }
+        external_ref: { type: [string, 'null'], example: T-1003 }
+        related_card_id: { type: [integer, 'null'] }
+        reverses_txn_id: { type: [integer, 'null'] }
+        actor_type: { type: string, enum: [USER, KIOSK, GATEWAY, SYSTEM, IMPORT] }
+        actor_id: { type: [integer, 'null'] }
+        actor_name: { type: [string, 'null'] }
+        approved_by: { type: [integer, 'null'] }
+        terminal_id: { type: [integer, 'null'] }
+        created_at: { type: string, format: date-time }
+        reversed: { type: boolean }
+
+    MutationResult:
+      type: object
+      description: Returned by every money/status mutation.
+      properties:
+        card: { $ref: '#/components/schemas/Card' }
+        transaction: { $ref: '#/components/schemas/Transaction' }
+        balance_cents: { type: integer }
+        status: { $ref: '#/components/schemas/CardStatus' }
+        outstanding_total_cents: { type: integer, description: Updated store-wide liability }
+
+    PairResult:
+      type: object
+      properties:
+        from: { $ref: '#/components/schemas/MutationResult' }
+        to: { $ref: '#/components/schemas/MutationResult' }
+
+    Reason:
+      type: object
+      required: [reason]
+      properties: { reason: { type: string, minLength: 3, maxLength: 500 } }
+
+    HistoryRow:
+      type: object
+      properties:
+        id: { type: string, example: T123, description: 'T = money ledger row, A = audit row' }
+        kind: { type: string, enum: [TXN, AUDIT] }
+        occurred_at: { type: string, format: date-time }
+        actor_type: { type: string }
+        actor_id: { type: [integer, 'null'] }
+        actor_name: { type: [string, 'null'] }
+        card_id: { type: [integer, 'null'] }
+        card_number: { type: [string, 'null'] }
+        action: { type: string, example: REDEEM }
+        amount_cents: { type: [integer, 'null'] }
+        balance_after_cents: { type: [integer, 'null'] }
+        reference: { type: [string, 'null'] }
+        terminal_id: { type: [integer, 'null'] }
+        terminal_code: { type: [string, 'null'] }
+        ip: { type: [string, 'null'] }
+        note: { type: [string, 'null'] }
+
+    KioskView:
+      type: object
+      properties:
+        card_masked: { type: string, example: '•••0010' }
+        status: { $ref: '#/components/schemas/CardStatus' }
+        balance_cents: { type: integer }
+        currency: { type: string }
+        expires_at: { type: [string, 'null'], format: date-time }
+        can_report_lost: { type: boolean }
+        transactions:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            properties: { date: { type: string, format: date-time }, type: { type: string }, amount_cents: { type: integer } }
+
+    Session:
+      type: object
+      properties:
+        token: { type: string }
+        expires_in: { type: integer, example: 28800 }
+        user: { type: object, properties: { id: { type: integer }, name: { type: string }, username: { type: string }, role: { type: string } } }
+
+paths:
+  # ------------------------------------------------------------------ auth
+  /auth/users:
+    get:
+      tags: [Auth]
+      summary: Users shown as PIN tiles on the shared-terminal login screen
+      security: [{ terminalKey: [] }]
+      responses: { '200': { description: OK } }
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Username + password login
+      security: [{ terminalKey: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [username, password], properties: { username: { type: string }, password: { type: string } } } } }
+      responses:
+        '200': { description: Session, content: { application/json: { schema: { $ref: '#/components/schemas/Session' } } } }
+        '401': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+  /auth/pin-login:
+    post:
+      tags: [Auth]
+      summary: Quick PIN login (optionally for a specific user tile)
+      security: [{ terminalKey: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [pin], properties: { pin: { type: string, pattern: '^\d{4,8}$' }, user_id: { type: integer } } } } }
+      responses:
+        '200': { description: Session, content: { application/json: { schema: { $ref: '#/components/schemas/Session' } } } }
+        '401': { $ref: '#/components/responses/Problem' }
+        '423': { $ref: '#/components/responses/Problem' }
+  /auth/logout:
+    post: { tags: [Auth], summary: Revoke the current session, responses: { '200': { description: OK } } }
+  /auth/me:
+    get: { tags: [Auth], summary: Current user, permissions, terminal and UI-relevant settings, responses: { '200': { description: OK } } }
+  /auth/approve:
+    post:
+      tags: [Auth]
+      summary: Manager step-up — returns a 120-second single-use approval token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pin, action]
+              properties:
+                pin: { type: string }
+                action: { type: string, enum: [void, adjust, archive, refund, large_amount, reverse, restore, erase, delete, bulk_void] }
+                approver_id: { type: integer }
+      responses:
+        '200': { description: Approval token, content: { application/json: { schema: { type: object, properties: { approval_token: { type: string }, approver: { type: object }, expires_in: { type: integer } } } } } }
+        '401': { $ref: '#/components/responses/Problem' }
+  /auth/unlock:
+    post:
+      tags: [Auth]
+      summary: Re-verify the current user's PIN after the activity lock
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { pin: { type: string } } } } } }
+      responses: { '200': { description: OK }, '401': { $ref: '#/components/responses/Problem' } }
+
+  # ------------------------------------------------------------------ cards
+  /cards:
+    get:
+      tags: [Cards]
+      summary: List / search cards (+ meta.outstanding_total_cents)
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [all, active, partial, zero, frozen, voided, pending, expired, closed, live], default: all } }
+        - { name: q, in: query, description: 'Card number, label/tag, holder name, phone, email', schema: { type: string } }
+        - { name: sort, in: query, schema: { type: string, enum: [balance_desc, balance_asc, created_desc, created_asc, last_used_desc, status, label, number], default: balance_desc } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: per_page, in: query, schema: { type: integer, default: 50, maximum: 500 } }
+        - { name: archived, in: query, schema: { type: string, enum: [exclude, include, only], default: exclude } }
+        - { name: customer_id, in: query, schema: { type: integer } }
+        - { name: tag_id, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Card' } }
+                  meta:
+                    type: object
+                    properties:
+                      page: { type: integer }
+                      per_page: { type: integer }
+                      total: { type: integer }
+                      outstanding_total_cents: { type: integer, example: 63500 }
+                      outstanding_card_count: { type: integer, example: 4 }
+    post:
+      tags: [Cards]
+      summary: Issue a card (number or auto-generated). Face value above the threshold needs approval.
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/ApprovalToken' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [face_value_cents]
+              properties:
+                card_number: { type: [string, 'null'], description: 'Omit/null to auto-generate', example: '3460011' }
+                face_value_cents: { type: integer, minimum: 1, example: 5000 }
+                activate: { type: boolean, default: true, description: 'false = PENDING_ACTIVATION (pre-printed stock)' }
+                customer_id: { type: [integer, 'null'] }
+                customer: { type: object, properties: { first_name: { type: string }, last_name: { type: string }, phone: { type: string }, email: { type: string } } }
+                label: { type: [string, 'null'], maxLength: 60 }
+                color_tag: { type: [string, 'null'] }
+                expires_at: { type: [string, 'null'], format: date-time }
+                pin: { type: [string, 'null'], pattern: '^\d{4,8}$' }
+                tag_ids: { type: array, items: { type: integer } }
+                external_ref: { type: [string, 'null'], description: 'Sale receipt #' }
+      responses:
+        '201': { description: Issued, content: { application/json: { schema: { $ref: '#/components/schemas/MutationResult' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /cards/export.csv:
+    get:
+      tags: [Cards]
+      summary: CSV export (same filters as list; `ids=1,2,3` for bulk-selected)
+      responses: { '200': { description: CSV, content: { text/csv: {} } } }
+  /cards/lookup/{number}:
+    get:
+      tags: [Cards]
+      summary: Scanner lookup by card number (card + last 5 transactions)
+      parameters: [{ name: number, in: path, required: true, schema: { type: string } }]
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/Problem' } }
+  /cards/statement/{id}.pdf:
+    get:
+      tags: [Cards]
+      summary: Single-card statement (PDF)
+      parameters: [{ $ref: '#/components/parameters/CardId' }]
+      responses: { '200': { description: PDF, content: { application/pdf: {} } } }
+  /cards/{id}:
+    parameters: [{ $ref: '#/components/parameters/CardId' }]
+    get:
+      tags: [Cards]
+      summary: Card details + transactions + non-money events + message log
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/Problem' } }
+    patch:
+      tags: [Cards]
+      summary: Edit label / color / expiry (null clears) / holder / card PIN
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label: { type: [string, 'null'] }
+                color_tag: { type: [string, 'null'] }
+                expires_at: { type: [string, 'null'], format: date-time }
+                customer_id: { type: [integer, 'null'] }
+                pin: { type: [string, 'null'] }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MutationResult' } } } } }
+    delete:
+      tags: [Cards]
+      summary: Soft delete (balance must be $0 — void first). Manager approval.
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/ApprovalToken' }]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/Reason' } } } }
+      responses: { '200': { description: Deleted }, '409': { $ref: '#/components/responses/Problem' } }
+  /cards/{id}/transactions:
+    get:
+      tags: [Cards]
+      parameters: [{ $ref: '#/components/parameters/CardId' }]
+      responses: { '200': { description: OK } }
+  /cards/{id}/receipt:
+    get:
+      tags: [Cards]
+      summary: Receipt model for browser printing (optionally for one txn)
+      parameters: [{ $ref: '#/components/parameters/CardId' }, { name: txn_id, in: query, schema: { type: integer } }]
+      responses: { '200': { description: OK } }
+  /cards/{id}/freeze:
+    put:
+      tags: [Cards]
+      parameters: [{ $ref: '#/components/parameters/CardId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Reason' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MutationResult' } } } } }
+  /cards/{id}/unfreeze:
+    put:
+      tags: [Cards]
+      parameters: [{ $ref: '#/components/parameters/CardId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MutationResult' } } } } }
+  /cards/{id}/activate:
+    post:
+      tags: [Card money]
+      summary: Activate a PENDING_ACTIVATION card (defaults to face value)
+      parameters: [{ $ref: '#/components/parameters/CardId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { amount_cents: { type: integer }, external_ref: { type: string } } } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MutationResult' } } } } }
+  /cards/{id}/reload:
+    post:
+      tags: [Card money]
+      parameters: [{ $ref: '#/components/parameters/CardId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/ApprovalToken' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [amount_cents], properties: { amount_cents: { type: integer, minimum: 1 }, external_ref: { type: string }, memo: { type: string } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MutationResult' } } } }
+        '422': { $ref: '#/components/responses/Problem' }
+        '423': { $ref: '#/components/responses/Problem' }
+  /cards/{id}/redeem:
+    post:
+      tags: [Card money]
+      summary: Redeem (optionally + tip paid from card, atomically)
+      parameters: [{ $ref: '#/components/parameters/CardId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/ApprovalToken' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount_cents]
+              properties:
+                amount_cents: { type: integer, minimum: 1, example: 2000 }
+                tip_cents: { type: integer, minimum: 0, default: 0 }
+                ref: { type: string, description: 'Ticket / receipt # (alias of external_ref)', example: T-1042 }
+                external_ref: { type: string }
+                memo: { type: string }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/MutationResult' }, { type: object, properties: { tip_transaction: { $ref: '#/components/schemas/Transaction' } } }] } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { description: 'INSUFFICIENT_FUNDS / CARD_EXPIRED / CARD_VOIDED', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '423': { description: CARD_FROZEN, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /cards/{id}/refund:
+    post:
+      tags: [Card money]
+      summary: Refund to card (manager; dual control when enabled)
+      parameters: [{ $ref: '#/components/parameters/CardId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/ApprovalToken' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [amount_cents, reason], properties: { amount_cents: { type: integer }, reason: { type: string }, external_ref: { type: string } } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MutationResult' } } } } }
+  /cards/{id}/adjust:
+    post:
+      tags: [Card money]
+      summary: Signed balance adjustment with reason (manager)
+      parameters: [{ $ref: '#/components/parameters/CardId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/ApprovalToken' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [delta_cents, reason], properties: { delta_cents: { type: integer, example: -500 }, reason: { type: string } } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MutationResult' } } } } }
+  /cards/{id}/void:
+    post:
+      tags: [Card money]
+      summary: Void (drains balance, terminal). Manager + dual control.
+      parameters: [{ $ref: '#/components/parameters/CardId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/ApprovalToken' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Reason' } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MutationResult' } } } } }
+  /cards/{id}/replace:
+    post:
+      tags: [Card money]
+      summary: Replace lost card — moves balance to a new number, old → LOST_REPLACED
+      parameters: [{ $ref: '#/components/parameters/CardId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { new_number: { type: [string, 'null'] }, reason: { type: string } } } } } }
+      responses: { '200': { description: '{ old, new }' } }
+  /cards/{id}/split:
+    post:
+      tags: [Card money]
+      summary: Split an amount into a brand-new card
+      parameters: [{ $ref: '#/components/parameters/CardId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [amount_cents], properties: { amount_cents: { type: integer }, new_number: { type: [string, 'null'] } } } } } }
+      responses: { '201': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PairResult' } } } } }
+  /cards/transfer:
+    post:
+      tags: [Card money]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/ApprovalToken' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [from_id, to_id, amount_cents], properties: { from_id: { type: integer }, to_id: { type: integer }, amount_cents: { type: integer }, memo: { type: string } } } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PairResult' } } } } }
+  /cards/merge:
+    post:
+      tags: [Card money]
+      summary: Move the full balance of from_id into to_id; source → CLOSED
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [from_id, to_id], properties: { from_id: { type: integer }, to_id: { type: integer } } } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PairResult' } } } } }
+  /transactions/{id}/reverse:
+    post:
+      tags: [Card money]
+      summary: Reverse a txn. Same user within the undo window = no approval; otherwise manager.
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/ApprovalToken' }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { reason: { type: string } } } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MutationResult' } } } } }
+  /cards/{id}/notes:
+    post:
+      tags: [Cards]
+      parameters: [{ $ref: '#/components/parameters/CardId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [note], properties: { note: { type: string } } } } } }
+      responses: { '200': { description: OK } }
+  /cards/{id}/tags:
+    put:
+      tags: [Cards]
+      parameters: [{ $ref: '#/components/parameters/CardId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { tag_ids: { type: array, items: { type: integer } } } } } } }
+      responses: { '200': { description: OK } }
+  /cards/{id}/print:
+    post:
+      tags: [Cards]
+      summary: Print receipt (network ESC/POS) or return receipt model (browser mode)
+      parameters: [{ $ref: '#/components/parameters/CardId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { txn_id: { type: integer } } } } } }
+      responses: { '200': { description: OK }, '502': { $ref: '#/components/responses/Problem' } }
+  /cards/{id}/send:
+    post:
+      tags: [Cards]
+      summary: Email / SMS delivery using a message template
+      parameters: [{ $ref: '#/components/parameters/CardId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [channel], properties: { channel: { type: string, enum: [EMAIL, SMS] }, template_key: { type: string, enum: [card_delivered, low_balance, reload_thanks, expiry_warning] }, to: { type: string } } } } }
+      responses: { '200': { description: OK }, '502': { $ref: '#/components/responses/Problem' } }
+  /cards/bulk:
+    post:
+      tags: [Cards]
+      summary: Bulk freeze / unfreeze / void (void needs approval). Per-card results.
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/ApprovalToken' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [action, ids], properties: { action: { type: string, enum: [freeze, unfreeze, void] }, ids: { type: array, items: { type: integer } }, reason: { type: string } } } } } }
+      responses: { '200': { description: OK } }
+  /cards/archive-zero:
+    post:
+      tags: [Cards]
+      summary: Clear Zero-Balance — archive $0 CLOSED/EXPIRED/VOIDED/LOST_REPLACED cards (30-day undo)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/ApprovalToken' }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { dry_run: { type: boolean, default: true } } } } } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dry_run: { type: boolean }
+                  count: { type: integer }
+                  face_value_total_cents: { type: integer }
+                  card_ids: { type: array, items: { type: integer } }
+                  undo_until: { type: [string, 'null'], format: date-time }
+  /cards/archive-restore:
+    post:
+      tags: [Cards]
+      summary: Undo an archive (within 30 days)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { card_ids: { type: array, items: { type: integer } } } } } } }
+      responses: { '200': { description: OK } }
+
+  # ------------------------------------------------------------------ history
+  /history:
+    get:
+      tags: [History]
+      summary: Unified, append-only history (money ledger + audit events)
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: actor_id, in: query, schema: { type: integer } }
+        - { name: actor_type, in: query, schema: { type: string, enum: [USER, KIOSK, GATEWAY, SYSTEM, IMPORT] } }
+        - { name: action, in: query, description: 'Comma-separated, e.g. REDEEM,RELOAD,card.frozen', schema: { type: string } }
+        - { name: card, in: query, description: Card number, schema: { type: string } }
+        - { name: kind, in: query, schema: { type: string, enum: [TXN, AUDIT] } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer } }
+        - { name: per_page, in: query, schema: { type: integer, maximum: 500 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { data: { type: array, items: { $ref: '#/components/schemas/HistoryRow' } }, meta: { type: object } } } } } }
+  /history/actions:
+    get: { tags: [History], summary: Distinct action names (for the filter dropdown), responses: { '200': { description: OK } } }
+  /history/export.csv:
+    get: { tags: [History], summary: CSV export (same filters, ≤50k rows), responses: { '200': { description: CSV, content: { text/csv: {} } } } }
+  /history/export.pdf:
+    get: { tags: [History], summary: PDF export (same filters, ≤5k rows), responses: { '200': { description: PDF, content: { application/pdf: {} } } } }
+
+  # ------------------------------------------------------------------ customers
+  /customers:
+    get:
+      tags: [Customers]
+      parameters: [{ name: q, in: query, schema: { type: string } }, { name: page, in: query, schema: { type: integer } }]
+      responses: { '200': { description: OK } }
+    post:
+      tags: [Customers]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { first_name: { type: string }, last_name: { type: string }, phone: { type: string }, email: { type: string }, marketing_opt_in: { type: boolean } } } } } }
+      responses: { '201': { description: Created }, '409': { $ref: '#/components/responses/Problem' } }
+  /customers/{id}:
+    get: { tags: [Customers], parameters: [{ $ref: '#/components/parameters/CardId' }], responses: { '200': { description: OK } } }
+    patch: { tags: [Customers], parameters: [{ $ref: '#/components/parameters/CardId' }, { $ref: '#/components/parameters/IdempotencyKey' }], responses: { '200': { description: OK } } }
+  /customers/{id}/erase:
+    post:
+      tags: [Customers]
+      summary: GDPR erase — blanks PII, keeps the money ledger. Body {"confirm":"ERASE"}. Approval.
+      parameters: [{ $ref: '#/components/parameters/CardId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/ApprovalToken' }]
+      responses: { '200': { description: OK } }
+
+  # ------------------------------------------------------------------ dashboard / events
+  /dashboard/summary:
+    get:
+      tags: [Dashboard]
+      summary: Liability, today's sales/redemptions/reloads, revenue recognized, breakage, expiring soon, alerts, 14-day series
+      responses: { '200': { description: OK } }
+  /events:
+    get:
+      tags: [Dashboard]
+      summary: Server-Sent Events stream of card changes (auth via ?access_token=)
+      parameters: [{ name: access_token, in: query, schema: { type: string } }]
+      responses: { '200': { description: text/event-stream } }
+
+  # ------------------------------------------------------------------ settings & admin
+  /settings:
+    get: { tags: [Settings], summary: All settings, responses: { '200': { description: OK } } }
+  /settings/{key}:
+    parameters: [{ name: key, in: path, required: true, schema: { type: string, enum: [general, receipt, printer, messaging, terminal, security, loyalty] } }]
+    get: { tags: [Settings], responses: { '200': { description: OK } } }
+    put:
+      tags: [Settings]
+      summary: Replace a settings section (validated). `security` is owner-only.
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { value: { type: object } } } } } }
+      responses: { '200': { description: OK }, '400': { $ref: '#/components/responses/Problem' } }
+  /templates:
+    get: { tags: [Settings], summary: Message templates, responses: { '200': { description: OK } } }
+  /templates/{id}:
+    put: { tags: [Settings], parameters: [{ name: id, in: path, required: true, schema: { type: integer } }, { $ref: '#/components/parameters/IdempotencyKey' }], responses: { '200': { description: OK } } }
+  /tags:
+    get: { tags: [Settings], responses: { '200': { description: OK } } }
+    post: { tags: [Settings], parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }], responses: { '201': { description: OK } } }
+  /terminals:
+    get: { tags: [Settings], responses: { '200': { description: OK } } }
+    post: { tags: [Settings], summary: Create terminal — API key shown once, parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }], responses: { '201': { description: OK } } }
+  /terminals/{id}/rotate-key:
+    post: { tags: [Settings], parameters: [{ name: id, in: path, required: true, schema: { type: integer } }, { $ref: '#/components/parameters/IdempotencyKey' }], responses: { '200': { description: OK } } }
+  /terminals/test-connection:
+    post: { tags: [Settings], summary: Payment gateway connectivity check (stub), parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }], responses: { '200': { description: OK } } }
+  /printer/test:
+    post: { tags: [Settings], summary: Print a test page, parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }], responses: { '200': { description: OK }, '502': { $ref: '#/components/responses/Problem' } } }
+  /users:
+    get: { tags: [Settings], responses: { '200': { description: OK } } }
+    post: { tags: [Settings], parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }], responses: { '201': { description: OK } } }
+  /users/{id}:
+    patch: { tags: [Settings], parameters: [{ name: id, in: path, required: true, schema: { type: integer } }, { $ref: '#/components/parameters/IdempotencyKey' }], responses: { '200': { description: OK } } }
+  /roles:
+    get: { tags: [Settings], summary: Roles × permissions matrix, responses: { '200': { description: OK } } }
+  /roles/{role}:
+    put: { tags: [Settings], summary: Replace a role's permissions (owner), parameters: [{ name: role, in: path, required: true, schema: { type: string } }, { $ref: '#/components/parameters/IdempotencyKey' }], responses: { '200': { description: OK } } }
+  /about:
+    get: { tags: [Settings], summary: Version, license, storage stats, responses: { '200': { description: OK } } }
+
+  # ------------------------------------------------------------------ import & data
+  /import/csv:
+    post:
+      tags: [Import & data]
+      summary: 'Legacy CSV import wizard: no mapping → returns headers + suggested mapping; dry_run=true (default) → preview; dry_run=false → commit'
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [csv]
+              properties:
+                filename: { type: string }
+                csv: { type: string }
+                mapping: { type: object, additionalProperties: { type: string }, example: { card_number: 'Card #', balance: Balance } }
+                dry_run: { type: boolean, default: true }
+      responses: { '200': { description: OK } }
+  /import/jobs:
+    get: { tags: [Import & data], responses: { '200': { description: OK } } }
+  /data/export.json:
+    get: { tags: [Import & data], summary: Full JSON export (secrets redacted), responses: { '200': { description: OK } } }
+  /data/export/{table}.csv:
+    get: { tags: [Import & data], parameters: [{ name: table, in: path, required: true, schema: { type: string, enum: [gift_cards, gift_card_transactions, customers, audit_log, message_log, card_tags, gift_card_tags, import_jobs] } }], responses: { '200': { description: CSV } } }
+  /data/backups:
+    get: { tags: [Import & data], responses: { '200': { description: OK } } }
+    post: { tags: [Import & data], summary: Create a server-side JSON backup (sha256 recorded), parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }], responses: { '201': { description: OK } } }
+  /data/backups/{id}/download:
+    get: { tags: [Import & data], parameters: [{ name: id, in: path, required: true, schema: { type: integer } }], responses: { '200': { description: JSON file } } }
+
+  # ------------------------------------------------------------------ kiosk (public)
+  /kiosk/cards/{number}:
+    get:
+      tags: [Kiosk]
+      summary: Public balance lookup (5 req/min/IP). Prefer POST /kiosk/lookup to keep the PIN out of URLs.
+      security: []
+      parameters: [{ name: number, in: path, required: true, schema: { type: string } }, { name: pin, in: query, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/KioskView' } } } }
+        '401': { description: 'Generic KIOSK_LOOKUP_FAILED (same for unknown card / wrong PIN)', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '429': { $ref: '#/components/responses/Problem' }
+  /kiosk/lookup:
+    post:
+      tags: [Kiosk]
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { number: { type: string }, pin: { type: string }, token: { type: string, description: QR token } } } } } }
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/KioskView' } } } }, '401': { $ref: '#/components/responses/Problem' } }
+  /kiosk/qr/{token}:
+    get:
+      tags: [Kiosk]
+      security: []
+      parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
+      responses: { '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/KioskView' } } } } }
+  /kiosk/report-lost:
+    post:
+      tags: [Kiosk]
+      summary: Customer reports card lost → card frozen + staff alert
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { number: { type: string }, pin: { type: string }, token: { type: string } } } } } }
+      responses: { '200': { description: OK } }
