@@ -32,7 +32,9 @@ id giftcard >/dev/null 2>&1 || useradd --system --create-home --home-dir /var/li
 
 log "Code -> $APP"
 if [ ! -d "$APP/.git" ]; then
-  if [ -n "$REPO_URL" ]; then git clone "$REPO_URL" "$APP"; else cp -a "$SRC" "$APP"; fi
+  # Same branch as the copy this script runs from (so a feature branch installs itself).
+  BRANCH="${BRANCH:-$(git -C "$SRC" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)}"
+  if [ -n "$REPO_URL" ]; then git clone -b "$BRANCH" "$REPO_URL" "$APP"; else cp -a "$SRC" "$APP"; fi
 fi
 rm -rf "$APP/api/.pgdata"
 chown -R giftcard:giftcard "$APP"
