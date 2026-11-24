@@ -7,6 +7,6 @@ export default defineConfig({
     fileParallelism: false,
     testTimeout: 30_000,
     hookTimeout: 120_000,
-    env: { NODE_ENV: 'test', JOBS_ENABLED: 'false' },
+    env: { NODE_ENV: 'test', JOBS_ENABLED: 'false', DEFAULT_BUSINESS: 'amazing-salon' },
   },
 });

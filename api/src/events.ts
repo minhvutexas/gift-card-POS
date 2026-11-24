@@ -7,12 +7,15 @@ import { config } from './config.js';
  * this process → Server-Sent Events to every connected terminal. Works with
  * several API instances because each one LISTENs independently.
  */
-const clients = new Set<Response>();
+const clients = new Map<Response, number>(); // response → salon id
 let listener: pg.Client | null = null;
 
+/** Events go only to terminals of the salon that produced them. */
 export function broadcast(event: Record<string, unknown>) {
-  const data = `data: ${JSON.stringify(event)}\n\n`;
-  for (const res of clients) res.write(data);
+  const { business_id, ...rest } = event;
+  if (typeof business_id !== 'number') return;
+  const data = `data: ${JSON.stringify(rest)}\n\n`;
+  for (const [res, bid] of clients) if (bid === business_id) res.write(data);
 }
 
 export async function startListener(connectionString = config.databaseUrl) {
@@ -39,7 +42,7 @@ export async function startListener(connectionString = config.databaseUrl) {
 export async function stopListener() {
   await listener?.end().catch(() => {});
   listener = null;
-  for (const res of clients) res.end();
+  for (const res of clients.keys()) res.end();
   clients.clear();
 }
 
@@ -51,7 +54,11 @@ export function sseHandler(req: Request, res: Response) {
     'X-Accel-Buffering': 'no',
   });
   res.write(`retry: 3000\ndata: ${JSON.stringify({ type: 'hello', at: new Date().toISOString() })}\n\n`);
-  clients.add(res);
+  if (!req.business) {
+    res.end();
+    return;
+  }
+  clients.set(res, req.business.id);
   const ping = setInterval(() => res.write(`: ping\n\n`), 25_000);
   req.on('close', () => {
     clearInterval(ping);

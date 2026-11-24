@@ -45,11 +45,12 @@ if [ -f "$ENV" ]; then
 else
   DB_PASS="$(openssl rand -hex 24)"
 fi
+# NOSUPERUSER NOBYPASSRLS: row-level security is the wall between salons.
 sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='giftcard'" | grep -q 1 \
-  || sudo -u postgres psql -c "CREATE ROLE giftcard LOGIN PASSWORD '$DB_PASS'"
+  || sudo -u postgres psql -c "CREATE ROLE giftcard LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD '$DB_PASS'"
 sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='giftcard'" | grep -q 1 \
   || sudo -u postgres createdb -O giftcard giftcard
-sudo -u postgres psql -d giftcard -c "CREATE EXTENSION IF NOT EXISTS pgcrypto"
+sudo -u postgres psql -d giftcard -c "CREATE EXTENSION IF NOT EXISTS pgcrypto" -c "CREATE EXTENSION IF NOT EXISTS pg_trgm"
 
 log "Config $ENV"
 if [ ! -f "$ENV" ]; then
@@ -100,8 +101,8 @@ fi
 sleep 2
 curl -fsS http://127.0.0.1:4000/health >/dev/null && echo "API healthy" || { echo "API not healthy: journalctl -u giftcard-api -n 50"; exit 1; }
 
-if ! sudo -u postgres psql -d giftcard -tAc "SELECT 1 FROM users WHERE role='OWNER' LIMIT 1" | grep -q 1; then
-  log "Create the owner login"
+if ! sudo -u postgres psql -d giftcard -tAc "SELECT 1 FROM businesses LIMIT 1" | grep -q 1; then
+  log "Create your first salon + owner login"
   sudo -u giftcard -H bash -c "cd $APP/api && set -a && . ./.env && set +a && npm run --silent setup:owner" </dev/tty
 fi
 

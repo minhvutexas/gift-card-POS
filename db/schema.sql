@@ -11,6 +11,13 @@
 -- The ONLY write path for gift_cards.balance / gift_cards.status is the
 -- fn_* functions below (enforced by trg_gift_cards_guard).
 --
+-- MULTI-TENANT: every salon is a row in `businesses`. Each salon-owned
+-- table has business_id and a FORCE'd row-level-security policy, so the
+-- app (connected as the non-superuser table owner) only ever sees rows of
+-- the salon named by `SET app.business_id = '<id>'`. With no salon set,
+-- every tenant table looks empty. Never connect the API as a superuser:
+-- superusers bypass RLS.
+--
 -- To skip the demo users/terminals/cards (production install):
 --     SET gc.skip_demo_seed = 'on';   -- before running this file
 -- =====================================================================
@@ -60,12 +67,73 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ---------------------------------------------------------------------
--- 3. TABLES
+-- 2b. TENANTS
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS businesses (
+  id           BIGSERIAL PRIMARY KEY,
+  slug         VARCHAR(40)  NOT NULL UNIQUE CHECK (slug ~ '^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$'),
+  name         VARCHAR(80)  NOT NULL,
+  status       VARCHAR(12)  NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','SUSPENDED')),
+  owner_email  VARCHAR(120),
+  created_at   TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+-- The salon this connection is acting for (NULL = none → tenant tables look empty).
+CREATE OR REPLACE FUNCTION fn_current_business() RETURNS BIGINT
+LANGUAGE sql STABLE AS $$ SELECT NULLIF(current_setting('app.business_id', true), '')::BIGINT $$;
+
+-- Platform-level access (signup, terminal-key lookup, platform admin). Set
+-- only by explicit system code paths in the API, never per salon request.
+CREATE OR REPLACE FUNCTION fn_system_mode() RETURNS BOOLEAN
+LANGUAGE sql STABLE AS $$ SELECT COALESCE(current_setting('app.system', true), '') = 'on' $$;
+
+-- One-time upgrade of a pre-multi-tenant database: everything that exists
+-- becomes business #1. Old global unique keys are dropped here; the
+-- per-salon replacements are (re)created idempotently in section 4b.
+DO $$
+DECLARE v_name TEXT; v_slug TEXT; t TEXT;
+BEGIN
+  IF to_regclass('public.users') IS NULL
+     OR EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'business_id') THEN
+    RETURN;
+  END IF;
+  RAISE NOTICE 'Upgrading single-salon database to multi-tenant (existing data → business 1)';
+
+  SELECT value->>'business_name' INTO v_name FROM settings WHERE key = 'general';
+  v_name := COALESCE(NULLIF(trim(v_name), ''), 'My Salon');
+  v_slug := trim(BOTH '-' FROM regexp_replace(lower(v_name), '[^a-z0-9]+', '-', 'g'));
+  IF v_slug !~ '^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$' THEN v_slug := 'salon-1'; END IF;
+  INSERT INTO businesses (id, slug, name) VALUES (1, left(v_slug, 40), left(v_name, 80));
+  PERFORM setval('businesses_id_seq', 1);
+
+  FOREACH t IN ARRAY ARRAY['users','role_permissions','terminals','customers','gift_cards',
+      'gift_card_transactions','audit_log','card_tags','gift_card_tags','message_templates',
+      'message_log','settings','import_jobs','backups','idempotency_keys'] LOOP
+    -- DEFAULT 1 fills existing rows without UPDATE (append-only triggers stay quiet).
+    EXECUTE format('ALTER TABLE %I ADD COLUMN business_id BIGINT NOT NULL DEFAULT 1 REFERENCES businesses(id)', t);
+  END LOOP;
+
+  ALTER TABLE users                  DROP CONSTRAINT IF EXISTS users_username_key;
+  ALTER TABLE role_permissions       DROP CONSTRAINT IF EXISTS role_permissions_pkey;
+  ALTER TABLE terminals              DROP CONSTRAINT IF EXISTS terminals_code_key;
+  ALTER TABLE customers              DROP CONSTRAINT IF EXISTS customers_phone_key;
+  ALTER TABLE gift_cards             DROP CONSTRAINT IF EXISTS gift_cards_card_number_key;
+  ALTER TABLE gift_card_transactions DROP CONSTRAINT IF EXISTS gift_card_transactions_idempotency_key_key;
+  ALTER TABLE card_tags              DROP CONSTRAINT IF EXISTS card_tags_name_key;
+  ALTER TABLE message_templates      DROP CONSTRAINT IF EXISTS message_templates_key_channel_key;
+  ALTER TABLE settings               DROP CONSTRAINT IF EXISTS settings_pkey;
+  ALTER TABLE idempotency_keys       DROP CONSTRAINT IF EXISTS idempotency_keys_pkey;
+END $$;
+
+-- ---------------------------------------------------------------------
+-- 3. TABLES   (per-salon unique keys live in section 4b)
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
   id                  BIGSERIAL PRIMARY KEY,
+  business_id         BIGINT       NOT NULL DEFAULT fn_current_business() REFERENCES businesses(id),
   name                VARCHAR(80)  NOT NULL,
-  username            VARCHAR(40)  NOT NULL UNIQUE,
+  username            VARCHAR(40)  NOT NULL,
   pin_hash            TEXT,
   password_hash       TEXT,
   role                role_name    NOT NULL DEFAULT 'STAFF',
@@ -79,14 +147,15 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Table-driven RBAC: adding a role = ALTER TYPE role_name ADD VALUE + rows here.
 CREATE TABLE IF NOT EXISTS role_permissions (
+  business_id BIGINT      NOT NULL DEFAULT fn_current_business() REFERENCES businesses(id),
   role        role_name   NOT NULL,
-  permission  VARCHAR(40) NOT NULL,
-  PRIMARY KEY (role, permission)
+  permission  VARCHAR(40) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS terminals (
   id            BIGSERIAL PRIMARY KEY,
-  code          VARCHAR(40)  NOT NULL UNIQUE,          -- e.g. FRONT-DESK-1
+  business_id   BIGINT       NOT NULL DEFAULT fn_current_business() REFERENCES businesses(id),
+  code          VARCHAR(40)  NOT NULL,                 -- e.g. FRONT-DESK-1
   name          VARCHAR(80)  NOT NULL,
   kind          VARCHAR(10)  NOT NULL DEFAULT 'POS' CHECK (kind IN ('POS','KIOSK')),
   api_key_hash  TEXT         NOT NULL,                 -- sha256 hex of the key
@@ -97,9 +166,10 @@ CREATE TABLE IF NOT EXISTS terminals (
 
 CREATE TABLE IF NOT EXISTS customers (
   id               BIGSERIAL PRIMARY KEY,
+  business_id      BIGINT      NOT NULL DEFAULT fn_current_business() REFERENCES businesses(id),
   first_name       VARCHAR(60),
   last_name        VARCHAR(60),
-  phone            VARCHAR(20) UNIQUE,                 -- NULLs allowed (distinct)
+  phone            VARCHAR(20),                        -- unique per salon; NULLs allowed
   email            VARCHAR(120),
   marketing_opt_in BOOLEAN     NOT NULL DEFAULT FALSE,
   loyalty_points   INT         NOT NULL DEFAULT 0 CHECK (loyalty_points >= 0),
@@ -115,7 +185,8 @@ CREATE SEQUENCE IF NOT EXISTS gift_card_number_seq START 3460011;
 
 CREATE TABLE IF NOT EXISTS gift_cards (
   id                    BIGSERIAL PRIMARY KEY,
-  card_number           VARCHAR(20)   NOT NULL UNIQUE CHECK (card_number ~ '^[0-9A-Z-]{4,20}$'),
+  business_id           BIGINT        NOT NULL DEFAULT fn_current_business() REFERENCES businesses(id),
+  card_number           VARCHAR(20)   NOT NULL CHECK (card_number ~ '^[0-9A-Z-]{4,20}$'),
   pan_token             TEXT,                          -- tokenized swipe data, never raw PAN
   pin_hash              TEXT,                          -- optional card PIN (bcrypt)
   status                card_status   NOT NULL DEFAULT 'PENDING_ACTIVATION',
@@ -156,6 +227,7 @@ CREATE TABLE IF NOT EXISTS gift_cards (
 -- Append-only money ledger.
 CREATE TABLE IF NOT EXISTS gift_card_transactions (
   id               BIGSERIAL PRIMARY KEY,
+  business_id      BIGINT        NOT NULL DEFAULT fn_current_business() REFERENCES businesses(id),
   card_id          BIGINT        NOT NULL REFERENCES gift_cards(id),
   txn_type         txn_type      NOT NULL,
   amount           NUMERIC(12,2) NOT NULL,             -- signed: +credit / -debit
@@ -170,13 +242,14 @@ CREATE TABLE IF NOT EXISTS gift_card_transactions (
   terminal_id      BIGINT REFERENCES terminals(id),
   ip               INET,
   user_agent       TEXT,
-  idempotency_key  VARCHAR(80) UNIQUE,                 -- client key (<=64) + ':out'/':in' suffixes
+  idempotency_key  VARCHAR(80),                        -- unique per salon; client key (<=64) + ':out'/':in' suffixes
   created_at       TIMESTAMPTZ   NOT NULL DEFAULT now()
 );
 
 -- Append-only non-money events.
 CREATE TABLE IF NOT EXISTS audit_log (
   id           BIGSERIAL PRIMARY KEY,
+  business_id  BIGINT       NOT NULL DEFAULT fn_current_business() REFERENCES businesses(id),
   actor_type   actor_type   NOT NULL DEFAULT 'USER',
   actor_id     BIGINT REFERENCES users(id),
   terminal_id  BIGINT REFERENCES terminals(id),
@@ -192,11 +265,13 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 CREATE TABLE IF NOT EXISTS card_tags (
   id     BIGSERIAL PRIMARY KEY,
-  name   VARCHAR(40) NOT NULL UNIQUE,
+  business_id BIGINT NOT NULL DEFAULT fn_current_business() REFERENCES businesses(id),
+  name   VARCHAR(40) NOT NULL,
   color  VARCHAR(20) NOT NULL DEFAULT 'slate'
 );
 
 CREATE TABLE IF NOT EXISTS gift_card_tags (
+  business_id BIGINT NOT NULL DEFAULT fn_current_business() REFERENCES businesses(id),
   card_id BIGINT NOT NULL REFERENCES gift_cards(id) ON DELETE CASCADE,
   tag_id  BIGINT NOT NULL REFERENCES card_tags(id) ON DELETE CASCADE,
   PRIMARY KEY (card_id, tag_id)
@@ -204,17 +279,18 @@ CREATE TABLE IF NOT EXISTS gift_card_tags (
 
 CREATE TABLE IF NOT EXISTS message_templates (
   id          BIGSERIAL PRIMARY KEY,
+  business_id BIGINT       NOT NULL DEFAULT fn_current_business() REFERENCES businesses(id),
   key         VARCHAR(40)  NOT NULL,                   -- card_delivered, low_balance, ...
   channel     msg_channel  NOT NULL,
   subject     VARCHAR(160),
   body        TEXT         NOT NULL,
   active      BOOLEAN      NOT NULL DEFAULT TRUE,
-  updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
-  UNIQUE (key, channel)
+  updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS message_log (
   id            BIGSERIAL PRIMARY KEY,
+  business_id   BIGINT      NOT NULL DEFAULT fn_current_business() REFERENCES businesses(id),
   template_key  VARCHAR(40),
   card_id       BIGINT REFERENCES gift_cards(id),
   customer_id   BIGINT REFERENCES customers(id),
@@ -226,7 +302,8 @@ CREATE TABLE IF NOT EXISTS message_log (
 );
 
 CREATE TABLE IF NOT EXISTS settings (
-  key         TEXT PRIMARY KEY,
+  business_id BIGINT      NOT NULL DEFAULT fn_current_business() REFERENCES businesses(id),
+  key         TEXT        NOT NULL,
   value       JSONB       NOT NULL,
   updated_by  BIGINT REFERENCES users(id),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -234,6 +311,7 @@ CREATE TABLE IF NOT EXISTS settings (
 
 CREATE TABLE IF NOT EXISTS import_jobs (
   id           BIGSERIAL PRIMARY KEY,
+  business_id  BIGINT      NOT NULL DEFAULT fn_current_business() REFERENCES businesses(id),
   filename     TEXT        NOT NULL,
   dry_run      BOOLEAN     NOT NULL DEFAULT TRUE,
   rows_total   INT         NOT NULL DEFAULT 0,
@@ -248,6 +326,7 @@ CREATE TABLE IF NOT EXISTS import_jobs (
 
 CREATE TABLE IF NOT EXISTS backups (
   id          BIGSERIAL PRIMARY KEY,
+  business_id BIGINT      NOT NULL DEFAULT fn_current_business() REFERENCES businesses(id),
   kind        VARCHAR(12) NOT NULL CHECK (kind IN ('JSON','CSV','PG_DUMP')),
   filename    TEXT        NOT NULL,
   size_bytes  BIGINT      NOT NULL CHECK (size_bytes >= 0),
@@ -258,7 +337,8 @@ CREATE TABLE IF NOT EXISTS backups (
 
 -- HTTP-level idempotency (replays the exact response for a repeated key).
 CREATE TABLE IF NOT EXISTS idempotency_keys (
-  key           VARCHAR(64) PRIMARY KEY,
+  business_id   BIGINT      NOT NULL DEFAULT fn_current_business() REFERENCES businesses(id),
+  key           VARCHAR(64) NOT NULL,
   method        VARCHAR(8)  NOT NULL,
   path          TEXT        NOT NULL,
   request_hash  CHAR(64)    NOT NULL,
@@ -297,6 +377,58 @@ CREATE INDEX IF NOT EXISTS ix_audit_card          ON audit_log (card_id, created
 CREATE INDEX IF NOT EXISTS ix_audit_action        ON audit_log (action, created_at DESC);
 CREATE INDEX IF NOT EXISTS ix_msglog_card         ON message_log (card_id, sent_at DESC);
 CREATE INDEX IF NOT EXISTS ix_idem_created        ON idempotency_keys (created_at);
+CREATE INDEX IF NOT EXISTS ix_txn_bid_created     ON gift_card_transactions (business_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_audit_bid_created   ON audit_log (business_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_gc_bid_status       ON gift_cards (business_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS users_bid_username_key ON users (business_id, lower(username));
+
+-- ---------------------------------------------------------------------
+-- 4b. PER-SALON KEYS, CROSS-SALON GUARDS, ROW LEVEL SECURITY
+-- ---------------------------------------------------------------------
+DO $$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN SELECT * FROM (VALUES
+    ('role_permissions',       'role_permissions_pkey',        'PRIMARY KEY (business_id, role, permission)'),
+    ('settings',               'settings_pkey',                'PRIMARY KEY (business_id, key)'),
+    ('idempotency_keys',       'idempotency_keys_pkey',        'PRIMARY KEY (business_id, key)'),
+    ('terminals',              'terminals_bid_code_key',       'UNIQUE (business_id, code)'),
+    ('customers',              'customers_bid_phone_key',      'UNIQUE (business_id, phone)'),
+    ('customers',              'customers_bid_id_key',         'UNIQUE (business_id, id)'),
+    ('gift_cards',             'gift_cards_bid_number_key',    'UNIQUE (business_id, card_number)'),
+    ('gift_cards',             'gift_cards_bid_id_key',        'UNIQUE (business_id, id)'),
+    ('gift_card_transactions', 'gc_txn_bid_idem_key',          'UNIQUE (business_id, idempotency_key)'),
+    ('card_tags',              'card_tags_bid_name_key',       'UNIQUE (business_id, name)'),
+    ('card_tags',              'card_tags_bid_id_key',         'UNIQUE (business_id, id)'),
+    ('message_templates',      'msg_tpl_bid_key_channel_key',  'UNIQUE (business_id, key, channel)'),
+    -- Composite FKs: a row can only point at a card/customer/tag of the SAME salon
+    -- (plain FK checks ignore RLS, so these are the hard stop for cross-salon links).
+    ('gift_cards',             'gift_cards_bid_customer_fk',   'FOREIGN KEY (business_id, customer_id) REFERENCES customers (business_id, id)'),
+    ('gift_cards',             'gift_cards_bid_replaced_fk',   'FOREIGN KEY (business_id, replaced_by_card_id) REFERENCES gift_cards (business_id, id)'),
+    ('gift_card_transactions', 'gc_txn_bid_card_fk',           'FOREIGN KEY (business_id, card_id) REFERENCES gift_cards (business_id, id)'),
+    ('gift_card_transactions', 'gc_txn_bid_related_fk',        'FOREIGN KEY (business_id, related_card_id) REFERENCES gift_cards (business_id, id)'),
+    ('gift_card_tags',         'gift_card_tags_bid_card_fk',   'FOREIGN KEY (business_id, card_id) REFERENCES gift_cards (business_id, id) ON DELETE CASCADE'),
+    ('gift_card_tags',         'gift_card_tags_bid_tag_fk',    'FOREIGN KEY (business_id, tag_id) REFERENCES card_tags (business_id, id) ON DELETE CASCADE')
+  ) AS v(tbl, name, def) LOOP
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = r.name AND conrelid = r.tbl::regclass) THEN
+      EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I %s', r.tbl, r.name, r.def);
+    END IF;
+  END LOOP;
+
+  FOR r IN SELECT unnest(ARRAY['users','role_permissions','terminals','customers','gift_cards',
+      'gift_card_transactions','audit_log','card_tags','gift_card_tags','message_templates',
+      'message_log','settings','import_jobs','backups','idempotency_keys']) AS tbl LOOP
+    EXECUTE format('ALTER TABLE %I ALTER COLUMN business_id SET DEFAULT fn_current_business()', r.tbl);
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', r.tbl);
+    -- FORCE: the policy also binds the table owner (the API's DB role) and
+    -- therefore every SECURITY DEFINER fn_* below.
+    EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', r.tbl);
+    EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', r.tbl);
+    EXECUTE format($p$CREATE POLICY tenant_isolation ON %I
+                      USING (business_id = fn_current_business() OR fn_system_mode())
+                      WITH CHECK (business_id = fn_current_business() OR fn_system_mode())$p$, r.tbl);
+  END LOOP;
+END $$;
 
 -- ---------------------------------------------------------------------
 -- 5. VIEWS
@@ -655,7 +787,7 @@ BEGIN
     p_ip, p_user_agent);
 
   PERFORM pg_notify('gc_events', json_build_object(
-    'type', 'txn', 'card_id', p_card_id, 'txn_type', p_type,
+    'type', 'txn', 'business_id', v_card.business_id, 'card_id', p_card_id, 'txn_type', p_type,
     'amount_cents', (v_amount * 100)::BIGINT, 'balance_cents', (v_new_bal * 100)::BIGINT,
     'status', v_status)::TEXT);
 
@@ -770,7 +902,7 @@ BEGIN
   PERFORM fn_audit(p_actor_type, p_actor_id, p_terminal_id, 'gift_card', p_card_id::TEXT, p_card_id,
     CASE WHEN p_frozen THEN 'card.frozen' ELSE 'card.unfrozen' END,
     jsonb_build_object('reason', p_reason, 'status_after', v_card.status), p_ip, p_user_agent);
-  PERFORM pg_notify('gc_events', json_build_object('type','status','card_id',p_card_id,
+  PERFORM pg_notify('gc_events', json_build_object('type','status','business_id',v_card.business_id,'card_id',p_card_id,
                                                    'status', v_card.status)::TEXT);
   RETURN v_card;
 END $$;
@@ -969,19 +1101,29 @@ BEGIN
 END $$;
 
 -- 6.14 Nightly expiry (pg_cron or app scheduler)
+-- With a salon set: that salon only. With none (pg_cron, run-job): every
+-- active salon, each under its own RLS context.
 CREATE OR REPLACE FUNCTION fn_expire_due_cards() RETURNS INT
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE r RECORD; v_n INT := 0;
+DECLARE r RECORD; b RECORD; v_n INT := 0; v_prev TEXT := current_setting('app.business_id', true);
 BEGIN
-  FOR r IN SELECT id FROM gift_cards
-           WHERE expires_at IS NOT NULL AND expires_at <= now() AND deleted_at IS NULL
-             AND status IN ('PENDING_ACTIVATION','ACTIVE','PARTIALUSED','CLOSED','FROZEN')
-           ORDER BY id
+  FOR b IN SELECT id FROM businesses
+           WHERE (v_prev IS NULL OR v_prev = '') AND status = 'ACTIVE'
+           UNION ALL SELECT NULLIF(v_prev, '')::BIGINT WHERE NULLIF(v_prev, '') IS NOT NULL
+           ORDER BY 1
   LOOP
-    PERFORM fn_apply_txn(r.id, 'EXPIRE', NULL, 'Expired (nightly job)', NULL, 'SYSTEM', NULL, NULL,
-                         NULL, NULL, 'expire:' || r.id);
-    v_n := v_n + 1;
+    PERFORM set_config('app.business_id', b.id::TEXT, true);
+    FOR r IN SELECT id FROM gift_cards
+             WHERE expires_at IS NOT NULL AND expires_at <= now() AND deleted_at IS NULL
+               AND status IN ('PENDING_ACTIVATION','ACTIVE','PARTIALUSED','CLOSED','FROZEN')
+             ORDER BY id
+    LOOP
+      PERFORM fn_apply_txn(r.id, 'EXPIRE', NULL, 'Expired (nightly job)', NULL, 'SYSTEM', NULL, NULL,
+                           NULL, NULL, 'expire:' || r.id);
+      v_n := v_n + 1;
+    END LOOP;
   END LOOP;
+  PERFORM set_config('app.business_id', COALESCE(v_prev, ''), true);
   RETURN v_n;
 END $$;
 
@@ -1024,54 +1166,71 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 -- ---------------------------------------------------------------------
--- 7. REFERENCE SEED (always)
+-- 7. REFERENCE SEED (per salon; idempotent, re-run for every salon on each migrate
+--    so new default templates/settings reach existing salons too)
 -- ---------------------------------------------------------------------
-INSERT INTO role_permissions (role, permission)
-SELECT r::role_name, p FROM (VALUES
-  ('OWNER','*'),
-  ('MANAGER','dashboard.read'),('MANAGER','cards.read'),('MANAGER','cards.issue'),
-  ('MANAGER','cards.reload'),('MANAGER','cards.redeem'),('MANAGER','cards.freeze'),
-  ('MANAGER','cards.refund'),('MANAGER','cards.adjust'),('MANAGER','cards.void'),
-  ('MANAGER','cards.transfer'),('MANAGER','cards.merge'),('MANAGER','cards.replace'),
-  ('MANAGER','cards.edit'),('MANAGER','cards.delete'),('MANAGER','cards.archive'),
-  ('MANAGER','cards.export'),('MANAGER','cards.print'),('MANAGER','cards.send'),
-  ('MANAGER','cards.reverse'),('MANAGER','history.read'),('MANAGER','history.export'),
-  ('MANAGER','customers.read'),('MANAGER','customers.write'),('MANAGER','customers.erase'),
-  ('MANAGER','settings.read'),('MANAGER','settings.write'),('MANAGER','import.run'),
-  ('MANAGER','data.export'),('MANAGER','data.backup'),('MANAGER','approve'),
-  ('STAFF','dashboard.read'),('STAFF','cards.read'),('STAFF','cards.issue'),
-  ('STAFF','cards.reload'),('STAFF','cards.redeem'),('STAFF','cards.freeze'),
-  ('STAFF','cards.edit'),('STAFF','cards.print'),('STAFF','cards.send'),
-  ('STAFF','cards.reverse'),('STAFF','cards.transfer'),('STAFF','history.read'),
-  ('STAFF','customers.read'),('STAFF','customers.write'),('STAFF','settings.read'),
-  ('KIOSK','kiosk.lookup')
-) AS v(r, p)
-ON CONFLICT DO NOTHING;
+CREATE OR REPLACE FUNCTION fn_seed_business(p_bid BIGINT, p_name TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE v_prev TEXT := current_setting('app.business_id', true);
+BEGIN
+  PERFORM set_config('app.business_id', p_bid::TEXT, true);
+  INSERT INTO role_permissions (role, permission)
+  SELECT r::role_name, p FROM (VALUES
+    ('OWNER','*'),
+    ('MANAGER','dashboard.read'),('MANAGER','cards.read'),('MANAGER','cards.issue'),
+    ('MANAGER','cards.reload'),('MANAGER','cards.redeem'),('MANAGER','cards.freeze'),
+    ('MANAGER','cards.refund'),('MANAGER','cards.adjust'),('MANAGER','cards.void'),
+    ('MANAGER','cards.transfer'),('MANAGER','cards.merge'),('MANAGER','cards.replace'),
+    ('MANAGER','cards.edit'),('MANAGER','cards.delete'),('MANAGER','cards.archive'),
+    ('MANAGER','cards.export'),('MANAGER','cards.print'),('MANAGER','cards.send'),
+    ('MANAGER','cards.reverse'),('MANAGER','history.read'),('MANAGER','history.export'),
+    ('MANAGER','customers.read'),('MANAGER','customers.write'),('MANAGER','customers.erase'),
+    ('MANAGER','settings.read'),('MANAGER','settings.write'),('MANAGER','import.run'),
+    ('MANAGER','data.export'),('MANAGER','data.backup'),('MANAGER','approve'),
+    ('STAFF','dashboard.read'),('STAFF','cards.read'),('STAFF','cards.issue'),
+    ('STAFF','cards.reload'),('STAFF','cards.redeem'),('STAFF','cards.freeze'),
+    ('STAFF','cards.edit'),('STAFF','cards.print'),('STAFF','cards.send'),
+    ('STAFF','cards.reverse'),('STAFF','cards.transfer'),('STAFF','history.read'),
+    ('STAFF','customers.read'),('STAFF','customers.write'),('STAFF','settings.read'),
+    ('KIOSK','kiosk.lookup')
+  ) AS v(r, p)
+  ON CONFLICT DO NOTHING;
 
-INSERT INTO settings (key, value) VALUES
-  ('general',   '{"business_name":"Amazing Salon","address":"","phone":"","logo_url":"","timezone":"America/Chicago","currency":"USD","tax_rate_bps":0,"tax_on_card_sale":false}'),
-  ('receipt',   '{"header":"Amazing Salon\nThank you!","footer":"Gift cards are not redeemable for cash.","show_balance_after":true,"show_terms":true,"terms":"No cash value except where required by law. Treat like cash; not replaced if lost unless registered.","show_barcode":true}'),
-  ('printer',   '{"mode":"browser","host":"","port":9100,"paper_width_mm":80,"auto_print":{"issue":true,"redeem":true,"reload":true,"refund":false},"copies":1}'),
-  ('messaging', '{"email_provider":"log","sms_provider":"log","from_email":"","from_sms":"","low_balance_threshold_cents":1000,"expiry_warning_days":[7,3,1],"send_low_balance":true,"send_reload_thanks":true}'),
-  ('terminal',  '{"gateway":"stub","gateway_public_key":"","gateway_mode":"sandbox"}'),
-  ('security',  '{"session_timeout_min":480,"activity_lock_min":5,"approval_threshold_cents":50000,"dual_control_refunds":true,"dual_control_voids":true,"pin_max_attempts":5,"pin_lockout_min":15,"undo_window_sec":10,"offline_max_redeem_cents":10000}'),
-  ('loyalty',   '{"enabled":false,"points_per_dollar":1}')
-ON CONFLICT (key) DO NOTHING;
+  INSERT INTO settings (key, value) VALUES
+    ('general',   jsonb_build_object('business_name', p_name) || '{"address":"","phone":"","logo_url":"","timezone":"America/Chicago","currency":"USD","tax_rate_bps":0,"tax_on_card_sale":false}'::jsonb),
+    ('receipt',   jsonb_build_object('header', p_name || E'\nThank you!') || '{"footer":"Gift cards are not redeemable for cash.","show_balance_after":true,"show_terms":true,"terms":"No cash value except where required by law. Treat like cash; not replaced if lost unless registered.","show_barcode":true}'::jsonb),
+    ('printer',   '{"mode":"browser","host":"","port":9100,"paper_width_mm":80,"auto_print":{"issue":true,"redeem":true,"reload":true,"refund":false},"copies":1}'),
+    ('messaging', '{"email_provider":"log","sms_provider":"log","from_email":"","from_sms":"","low_balance_threshold_cents":1000,"expiry_warning_days":[7,3,1],"send_low_balance":true,"send_reload_thanks":true}'),
+    ('terminal',  '{"gateway":"stub","gateway_public_key":"","gateway_mode":"sandbox"}'),
+    ('security',  '{"session_timeout_min":480,"activity_lock_min":5,"approval_threshold_cents":50000,"dual_control_refunds":true,"dual_control_voids":true,"pin_max_attempts":5,"pin_lockout_min":15,"undo_window_sec":10,"offline_max_redeem_cents":10000}'),
+    ('loyalty',   '{"enabled":false,"points_per_dollar":1}')
+  ON CONFLICT (business_id, key) DO NOTHING;
 
-INSERT INTO message_templates (key, channel, subject, body) VALUES
-  ('card_delivered','EMAIL','Your {{business_name}} gift card','Hi {{first_name}}, your gift card {{card_masked}} is loaded with {{balance}}. Check your balance anytime: {{kiosk_url}}'),
-  ('card_delivered','SMS',  NULL,'{{business_name}}: your gift card {{card_masked}} has {{balance}}. Balance: {{kiosk_url}}'),
-  ('low_balance','EMAIL','Your gift card is running low','Hi {{first_name}}, card {{card_masked}} has {{balance}} left. Reload at the front desk anytime.'),
-  ('low_balance','SMS',  NULL,'{{business_name}}: card {{card_masked}} has {{balance}} left.'),
-  ('reload_thanks','EMAIL','Thanks for reloading!','Hi {{first_name}}, we added {{amount}} to card {{card_masked}}. New balance: {{balance}}.'),
-  ('reload_thanks','SMS',  NULL,'{{business_name}}: +{{amount}} added. Card {{card_masked}} balance {{balance}}.'),
-  ('expiry_warning','EMAIL','Your gift card expires in {{days_left}} day(s)','Hi {{first_name}}, card {{card_masked}} ({{balance}}) expires on {{expires_on}}. Book a visit to use it!'),
-  ('expiry_warning','SMS',  NULL,'{{business_name}}: card {{card_masked}} ({{balance}}) expires {{expires_on}}.')
-ON CONFLICT (key, channel) DO NOTHING;
+  INSERT INTO message_templates (key, channel, subject, body) VALUES
+    ('card_delivered','EMAIL','Your {{business_name}} gift card','Hi {{first_name}}, your gift card {{card_masked}} is loaded with {{balance}}. Check your balance anytime: {{kiosk_url}}'),
+    ('card_delivered','SMS',  NULL,'{{business_name}}: your gift card {{card_masked}} has {{balance}}. Balance: {{kiosk_url}}'),
+    ('low_balance','EMAIL','Your gift card is running low','Hi {{first_name}}, card {{card_masked}} has {{balance}} left. Reload at the front desk anytime.'),
+    ('low_balance','SMS',  NULL,'{{business_name}}: card {{card_masked}} has {{balance}} left.'),
+    ('reload_thanks','EMAIL','Thanks for reloading!','Hi {{first_name}}, we added {{amount}} to card {{card_masked}}. New balance: {{balance}}.'),
+    ('reload_thanks','SMS',  NULL,'{{business_name}}: +{{amount}} added. Card {{card_masked}} balance {{balance}}.'),
+    ('expiry_warning','EMAIL','Your gift card expires in {{days_left}} day(s)','Hi {{first_name}}, card {{card_masked}} ({{balance}}) expires on {{expires_on}}. Book a visit to use it!'),
+    ('expiry_warning','SMS',  NULL,'{{business_name}}: card {{card_masked}} ({{balance}}) expires {{expires_on}}.')
+  ON CONFLICT (business_id, key, channel) DO NOTHING;
 
-INSERT INTO card_tags (name, color) VALUES
-  ('Birthday','pink'),('Promo','violet'),('Corporate','sky'),('VIP','amber'),('Comp','slate')
-ON CONFLICT (name) DO NOTHING;
+  INSERT INTO card_tags (name, color) VALUES
+    ('Birthday','pink'),('Promo','violet'),('Corporate','sky'),('VIP','amber'),('Comp','slate')
+  ON CONFLICT (business_id, name) DO NOTHING;
+
+  PERFORM set_config('app.business_id', COALESCE(v_prev, ''), true);
+END $$;
+
+DO $$
+DECLARE b RECORD;
+BEGIN
+  FOR b IN SELECT id, name FROM businesses ORDER BY id LOOP
+    PERFORM fn_seed_business(b.id, b.name);
+  END LOOP;
+END $$;
 
 -- ---------------------------------------------------------------------
 -- 8. DEMO SEED (matches the source POS screenshot; outstanding = $635.00)
@@ -1079,25 +1238,33 @@ ON CONFLICT (name) DO NOTHING;
 --    Terminals: FRONT-DESK-1 key "dev-frontdesk-key" · KIOSK-1 key "dev-kiosk-key"
 --    Card PINs: 1234 (kiosk demo)
 -- ---------------------------------------------------------------------
+--    Salon:     slug "amazing-salon"
 DO $$
-DECLARE v_owner BIGINT; v_term BIGINT; v_card gift_cards; v_pin TEXT;
+DECLARE v_owner BIGINT; v_term BIGINT; v_card gift_cards; v_pin TEXT; v_bid BIGINT;
 BEGIN
   IF current_setting('gc.skip_demo_seed', true) = 'on' THEN
     RAISE NOTICE 'Skipping demo seed'; RETURN;
   END IF;
 
+  INSERT INTO businesses (slug, name) VALUES ('amazing-salon', 'Amazing Salon')
+  ON CONFLICT (slug) DO NOTHING;
+  SELECT id INTO v_bid FROM businesses WHERE slug = 'amazing-salon';
+  PERFORM fn_seed_business(v_bid, 'Amazing Salon');
+  PERFORM set_config('app.business_id', v_bid::TEXT, true);
+
   INSERT INTO users (name, username, pin_hash, password_hash, role) VALUES
     ('Owner',   'owner',   crypt('1111', gen_salt('bf', 10)), crypt('owner123',   gen_salt('bf', 10)), 'OWNER'),
     ('Manager', 'manager', crypt('2222', gen_salt('bf', 10)), crypt('manager123', gen_salt('bf', 10)), 'MANAGER'),
     ('Front Desk', 'staff', crypt('3333', gen_salt('bf', 10)), NULL, 'STAFF')
-  ON CONFLICT (username) DO NOTHING;
+  ON CONFLICT DO NOTHING;
 
   INSERT INTO terminals (code, name, kind, api_key_hash) VALUES
     ('FRONT-DESK-1', 'Front desk iPad', 'POS',   encode(digest('dev-frontdesk-key', 'sha256'), 'hex')),
     ('KIOSK-1',      'Customer kiosk',  'KIOSK', encode(digest('dev-kiosk-key', 'sha256'), 'hex'))
-  ON CONFLICT (code) DO NOTHING;
+  ON CONFLICT (business_id, code) DO NOTHING;
 
   IF EXISTS (SELECT 1 FROM gift_cards WHERE card_number IN ('3460001','3460002','3460003','3460010')) THEN
+    PERFORM set_config('app.business_id', '', true);
     RETURN;
   END IF;
 
@@ -1116,6 +1283,7 @@ BEGIN
   PERFORM fn_apply_txn(v_card.id, 'REDEEM', -2800, 'Classic pedicure', 'T-1003', 'USER', v_owner, v_term);
   -- 3460010: $500 → untouched → $500.00 ACTIVE
   v_card := fn_issue_card('3460010', 50000, TRUE, NULL, NULL, NULL, NULL, NULL, v_pin, 'POS', 'USER', v_owner, v_term);
+  PERFORM set_config('app.business_id', '', true);
 END $$;
 
 COMMIT;

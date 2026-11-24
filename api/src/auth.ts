@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { config } from './config.js';
-import { one, query } from './db.js';
+import { currentBusinessId, one, query } from './db.js';
 import { ApiError, forbidden, unauthorized } from './errors.js';
 import { getSetting } from './settings.js';
 import type { Actor, AuthUser, TerminalInfo } from './types.js';
@@ -29,12 +29,10 @@ export function actorOf(req: Request): Actor {
 // ---------------------------------------------------------------- terminal key
 const lastSeenWritten = new Map<number, number>();
 
+// The key itself is checked in resolveTenant (it also names the salon).
 export async function terminalMiddleware(req: Request, _res: Response, next: NextFunction) {
-  const key = req.get('x-terminal-key') ?? (typeof req.query.terminal_key === 'string' ? req.query.terminal_key : undefined);
-  if (key) {
-    const t = await one<TerminalInfo>('SELECT id, code, name, kind FROM terminals WHERE api_key_hash = $1 AND active', [sha256(key)]);
-    if (!t) return next(unauthorized('Unknown or disabled terminal key', 'TERMINAL_INVALID'));
-    req.terminal = t;
+  const t = req.terminal;
+  if (t) {
     const last = lastSeenWritten.get(t.id) ?? 0;
     if (Date.now() - last > 60_000) {
       lastSeenWritten.set(t.id, Date.now());
@@ -47,13 +45,18 @@ export async function terminalMiddleware(req: Request, _res: Response, next: Nex
 }
 
 // ---------------------------------------------------------------- permissions
-let permCache: { at: number; map: Map<string, Set<string>> } | null = null;
+const permCaches = new Map<number, { at: number; map: Map<string, Set<string>> }>();
 
+/** Role permissions are per salon (each owner can tune their own roles). */
 export function invalidatePermissions() {
-  permCache = null;
+  const bid = currentBusinessId();
+  if (bid === null) permCaches.clear();
+  else permCaches.delete(bid);
 }
 
 export async function permissionsFor(role: string): Promise<Set<string>> {
+  const bid = currentBusinessId() ?? 0;
+  let permCache = permCaches.get(bid);
   if (!permCache || Date.now() - permCache.at > 60_000) {
     const { rows } = await query<{ role: string; permission: string }>('SELECT role::text, permission FROM role_permissions');
     const map = new Map<string, Set<string>>();
@@ -62,6 +65,7 @@ export async function permissionsFor(role: string): Promise<Set<string>> {
       map.get(r.role)!.add(r.permission);
     }
     permCache = { at: Date.now(), map };
+    permCaches.set(bid, permCache);
   }
   return permCache.map.get(role) ?? new Set();
 }
@@ -79,11 +83,14 @@ interface SessionClaims {
   sub: string;
   typ: 'session';
   tid: number | null;
+  bid: number;
 }
 
 export async function issueSession(user: { id: number }, terminalId: number | null) {
   const { session_timeout_min } = await getSetting('security');
-  const token = jwt.sign({ typ: 'session', tid: terminalId } satisfies Omit<SessionClaims, 'sub'>, config.jwtSecret, {
+  const bid = currentBusinessId();
+  if (bid === null) throw new ApiError(400, 'BUSINESS_REQUIRED', 'Enter your Salon ID to continue', 'business');
+  const token = jwt.sign({ typ: 'session', tid: terminalId, bid } satisfies Omit<SessionClaims, 'sub'>, config.jwtSecret, {
     subject: String(user.id),
     expiresIn: session_timeout_min * 60,
     jwtid: randomUUID(),
@@ -93,23 +100,24 @@ export async function issueSession(user: { id: number }, terminalId: number | nu
 
 const revoked = new Map<string, number>(); // jti → exp (logout)
 
-const userCache = new Map<number, { at: number; user: AuthUser | null }>();
+const userCache = new Map<string, { at: number; user: AuthUser | null }>();
+const userKey = (id: number) => `${currentBusinessId() ?? 0}:${id}`;
 
 async function loadUser(id: number): Promise<AuthUser | null> {
-  const hit = userCache.get(id);
+  const hit = userCache.get(userKey(id));
   if (hit && Date.now() - hit.at < 15_000) return hit.user;
   const row = await one<{ id: number; name: string; username: string; role: string }>(
     'SELECT id, name, username, role::text FROM users WHERE id = $1 AND active',
     [id],
   );
   const user = row ? { ...row, perms: await permissionsFor(row.role) } : null;
-  userCache.set(id, { at: Date.now(), user });
+  userCache.set(userKey(id), { at: Date.now(), user });
   return user;
 }
 
 export function invalidateUser(id?: number) {
   if (id === undefined) userCache.clear();
-  else userCache.delete(id);
+  else userCache.delete(userKey(id));
 }
 
 export async function authenticate(req: Request, _res: Response, next: NextFunction) {
@@ -124,6 +132,8 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
   }
   if (claims.typ !== 'session' || (claims.jti && revoked.has(claims.jti))) return next(unauthorized('Invalid session', 'SESSION_INVALID'));
   if (claims.tid && req.terminal && claims.tid !== req.terminal.id) return next(unauthorized('Session belongs to another terminal', 'SESSION_INVALID'));
+  // resolveTenant already pinned the request to claims.bid; this is the belt to its braces.
+  if (!req.business || claims.bid !== req.business.id) return next(unauthorized('Session belongs to another salon', 'SESSION_INVALID'));
   const user = await loadUser(Number(claims.sub));
   if (!user) return next(unauthorized('User disabled', 'SESSION_INVALID'));
   req.user = user;

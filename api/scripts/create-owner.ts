@@ -1,11 +1,13 @@
 /**
- * First-run setup for a real (non-demo) install.
- * Creates the OWNER login and one paired POS terminal, then prints the terminal key.
+ * Creates a salon by hand: the salon (business), its default settings, the
+ * OWNER login and one paired POS terminal, then prints the terminal key.
+ * (Salons can also sign up from the web once the signup page ships.)
  *
  *   SKIP_DEMO_SEED=true npm run db:migrate
  *   npm run setup:owner
  *
- * Asks for values interactively. For scripts, set OWNER_USERNAME, OWNER_NAME,
+ * Asks for values interactively. For scripts, set SALON_NAME, SALON_ID,
+ * OWNER_EMAIL, OWNER_USERNAME, OWNER_NAME,
  * OWNER_PASSWORD, OWNER_PIN (optional), TERMINAL_CODE, TERMINAL_NAME.
  */
 import { createHash, randomBytes } from 'node:crypto';
@@ -28,6 +30,10 @@ async function ask(env: string, label: string, def = ''): Promise<string> {
   return a || def;
 }
 
+const salonName = await ask('SALON_NAME', 'Salon name');
+const suggested = salonName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+const slug = (await ask('SALON_ID', 'Salon ID (used to log in; a-z 0-9 -)', suggested)).toLowerCase();
+const email = await ask('OWNER_EMAIL', 'Owner email (optional)');
 const username = await ask('OWNER_USERNAME', 'Owner username', 'owner');
 const name = await ask('OWNER_NAME', 'Owner display name', 'Owner');
 const password = await ask('OWNER_PASSWORD', 'Owner password (min 10 chars)');
@@ -40,6 +46,8 @@ const fail = (m: string): never => {
   console.error(`✗ ${m}`);
   process.exit(1);
 };
+if (!salonName || salonName.length > 80) fail('Salon name: 1-80 characters');
+if (!/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(slug)) fail('Salon ID: 3-40 of a-z 0-9 -, not starting/ending with -');
 if (!/^[A-Za-z0-9._-]{2,40}$/.test(username)) fail('Username: 2-40 letters, digits, . _ -');
 if (password.length < 10) fail('Password must be at least 10 characters');
 if (pin && !/^\d{4,8}$/.test(pin)) fail('PIN must be 4-8 digits');
@@ -50,12 +58,19 @@ const client = new pg.Client({ connectionString: url });
 await client.connect();
 try {
   await client.query('BEGIN');
-  const exists = await client.query('SELECT 1 FROM users WHERE lower(username) = lower($1)', [username]);
-  if (exists.rowCount) throw new Error(`User "${username}" already exists — nothing changed.`);
-  const demo = await client.query(`SELECT 1 FROM terminals WHERE code IN ('FRONT-DESK-1','KIOSK-1') AND api_key_hash = $1`, [
-    createHash('sha256').update('dev-frontdesk-key').digest('hex'),
-  ]);
-  if (demo.rowCount) console.warn('⚠ Demo data found. For production, migrate a fresh DB with SKIP_DEMO_SEED=true.');
+  // Platform step: create the salon (SET LOCAL → ends with the transaction).
+  await client.query(`SELECT set_config('app.system', 'on', true)`);
+  if ((await client.query('SELECT 1 FROM businesses WHERE slug = $1', [slug])).rowCount) {
+    throw new Error(`Salon ID "${slug}" is taken — nothing changed.`);
+  }
+  const { rows } = await client.query<{ id: number }>(
+    'INSERT INTO businesses (slug, name, owner_email) VALUES ($1, $2, $3) RETURNING id',
+    [slug, salonName, email || null],
+  );
+  const bid = rows[0].id;
+  // Everything else happens inside the new salon only.
+  await client.query(`SELECT set_config('app.system', '', true), set_config('app.business_id', $1, true)`, [String(bid)]);
+  await client.query('SELECT fn_seed_business($1, $2)', [bid, salonName]);
 
   await client.query(`INSERT INTO users (name, username, role, password_hash, pin_hash) VALUES ($1, $2, 'OWNER', $3, $4)`, [
     name,
@@ -77,6 +92,7 @@ try {
   await client.end();
 }
 
-console.log(`\n✓ Owner "${username}" created.`);
+console.log(`\n✓ Salon "${salonName}" created. Salon ID: ${slug}`);
+console.log(`✓ Owner "${username}" created.`);
 console.log(`✓ Terminal ${terminalCode} created. Its key (shown once — save it):\n\n    ${key}\n`);
 console.log('Enter this key on the device in Settings › Terminal, then log in.');

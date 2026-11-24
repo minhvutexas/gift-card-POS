@@ -30,7 +30,7 @@ export function idempotency(opts: { required?: boolean } = { required: true }) {
 
     const inserted = await one(
       `INSERT INTO idempotency_keys (key, method, path, request_hash) VALUES ($1, $2, $3, $4)
-       ON CONFLICT (key) DO NOTHING RETURNING key`,
+       ON CONFLICT (business_id, key) DO NOTHING RETURNING key`,
       [key, req.method, req.originalUrl.slice(0, 500), requestHash],
     );
 

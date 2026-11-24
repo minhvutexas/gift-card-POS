@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { query, type Db, pool } from './db.js';
+import { currentBusinessId, query, type Db, pool } from './db.js';
 
 const cents = z.number().int().min(0).max(100_000_000);
 
@@ -77,14 +77,18 @@ export const DEFAULTS: Settings = {
 
 export const isSettingKey = (k: string): k is SettingKey => k in settingSchemas;
 
-let cache: { at: number; values: Settings } | null = null;
+const caches = new Map<number, { at: number; values: Settings }>();
 const TTL_MS = 5_000;
 
 export function invalidateSettings() {
-  cache = null;
+  const bid = currentBusinessId();
+  if (bid === null) caches.clear();
+  else caches.delete(bid);
 }
 
 export async function getAllSettings(db: Db = pool): Promise<Settings> {
+  const bid = currentBusinessId() ?? 0;
+  const cache = caches.get(bid);
   if (cache && Date.now() - cache.at < TTL_MS) return cache.values;
   const { rows } = await query<{ key: string; value: any }>('SELECT key, value FROM settings', [], db);
   const values = structuredClone(DEFAULTS) as Settings;
@@ -98,7 +102,7 @@ export async function getAllSettings(db: Db = pool): Promise<Settings> {
     }
     (values as any)[r.key] = { ...(DEFAULTS as any)[r.key], ...v };
   }
-  cache = { at: Date.now(), values };
+  if (bid) caches.set(bid, { at: Date.now(), values });
   return values;
 }
 

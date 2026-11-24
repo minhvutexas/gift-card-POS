@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { one, pool } from '../src/db.js';
+import { one, pool, runAsSystem, setTestTenant } from '../src/db.js';
 import { issueCard } from '../src/services/cards.js';
 import type { Actor } from '../src/types.js';
+
+/** The demo salon (from the demo seed) is the default for direct service calls. */
+export const DEMO_SLUG = 'amazing-salon';
+export const demoBusinessId = (await runAsSystem(() => one<{ id: number }>('SELECT id FROM businesses WHERE slug = $1', [DEMO_SLUG])))!.id;
+setTestTenant(demoBusinessId);
 
 let seq = 0;
 /** Unique card number per test run (letters keep them clear of seed/auto numbers). */

@@ -8,6 +8,13 @@ export interface AuthUser {
   perms: Set<string>;
 }
 
+export interface BusinessInfo {
+  id: number;
+  slug: string;
+  name: string;
+  status: 'ACTIVE' | 'SUSPENDED';
+}
+
 export interface TerminalInfo {
   id: number;
   code: string;
@@ -29,6 +36,7 @@ declare global {
   namespace Express {
     interface Request {
       user?: AuthUser;
+      business?: BusinessInfo;
       terminal?: TerminalInfo;
       idempotencyKey?: string;
     }

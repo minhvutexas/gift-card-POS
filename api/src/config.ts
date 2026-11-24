@@ -34,6 +34,8 @@ export const config = {
   gatewayMode: (process.env.GATEWAY_MODE ?? 'sandbox') as 'sandbox' | 'disabled',
   backupDir: process.env.BACKUP_DIR ?? path.join(API_ROOT, 'backups'),
   trustProxy: process.env.TRUST_PROXY ?? 'loopback',
+  /** Salon ID used when a request names none (single-salon installs, dev, tests). */
+  defaultBusiness: (process.env.DEFAULT_BUSINESS ?? '').trim().toLowerCase(),
   twilio: {
     sid: process.env.TWILIO_ACCOUNT_SID ?? '',
     token: process.env.TWILIO_AUTH_TOKEN ?? '',

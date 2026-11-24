@@ -4,7 +4,25 @@ Goal: many salons sign up on one server. Each salon sees only its own
 cards, customers, staff, history and settings. Same stack as today:
 Express API + React (Vite) + PostgreSQL on Ubuntu.
 
-Status: **plan only. No code written yet.**
+Status: **Phase 1 done** (database wall + API salon context + isolation
+tests). Phases 2-4 still to do: signup page, Salon ID on the login screen,
+kiosk at `/k/:slug`, platform admin, installer polish.
+
+### What phase 1 actually shipped (differs from the first draft)
+
+- **No per-function checks were needed.** Tables use `FORCE ROW LEVEL
+  SECURITY` and the API's role owns them but is not a superuser, so RLS
+  also applies inside the 12 `SECURITY DEFINER` functions.
+- **One DB role, not two.** The API connects as the non-superuser owner.
+  Platform steps (signup, terminal-key lookup) set `app.system = on` for
+  that one query only. The API refuses to start in production if its
+  role can bypass RLS.
+- `role_permissions` is per salon too, so each owner can tune their own roles.
+- Backups are written to one folder per salon.
+- `DEFAULT_BUSINESS` (a Salon ID) keeps single-salon installs and dev
+  working without typing a Salon ID.
+- Tests run as a non-superuser. With the RLS filter deliberately broken,
+  the isolation suite fails (checked).
 
 ---
 

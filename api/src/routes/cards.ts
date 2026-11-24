@@ -107,7 +107,8 @@ router.get('/cards/:id', requirePerm('cards.read'), async (req, res) => {
 });
 
 router.get('/cards/:id/transactions', requirePerm('cards.read'), async (req, res) => {
-  res.json({ data: await cards.cardTxns(cardId(req), 1000) });
+  const card = await cards.getCard(cardId(req)); // 404 for unknown / other salon's card
+  res.json({ data: await cards.cardTxns(card.id, 1000) });
 });
 
 router.get('/cards/:id/receipt', requirePerm('cards.read'), async (req, res) => {

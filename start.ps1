@@ -7,7 +7,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $api  = Join-Path $root 'api'
 $web  = Join-Path $root 'web'
 $url  = 'http://localhost:5173'
-$dbUrl = 'postgres://postgres:postgres@localhost:5433/giftcard'
+$dbUrl = 'postgres://giftcard:giftcard@localhost:5433/giftcard'
 
 function Test-Port([int]$port) {
     $c = New-Object System.Net.Sockets.TcpClient
@@ -61,7 +61,7 @@ else {
 if (Test-Port 4000) { Write-Host '  API already running' }
 else {
     Write-Host '  starting API...'
-    Start-Service 'GiftCard - API (keep open)' $api "set `"DATABASE_URL=$dbUrl`" && set `"PORT=4000`" && npm run dev"
+    Start-Service 'GiftCard - API (keep open)' $api "set `"DATABASE_URL=$dbUrl`" && set `"PORT=4000`" && set `"DEFAULT_BUSINESS=amazing-salon`" && npm run dev"
     Wait-Port 4000 'API' 120
 }
 

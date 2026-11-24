@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.js';
-import { one, query, withTx } from '../db.js';
+import { currentBusinessId, one, query, withTx } from '../db.js';
 import { ApiError } from '../errors.js';
 import { audit } from '../audit.js';
 import { invalidateSettings } from '../settings.js';
@@ -43,12 +43,20 @@ export async function dumpAll(opts: { includeSecrets?: boolean } = { includeSecr
   return { format: 'giftcard-pos-backup', version: 1, app_version: config.version, created_at: new Date().toISOString(), tables };
 }
 
+/** Each salon's backup files live in their own folder. */
+function salonBackupDir() {
+  const bid = currentBusinessId();
+  if (bid === null) throw new ApiError(400, 'BUSINESS_REQUIRED', 'Backups belong to a salon');
+  return path.join(config.backupDir, `salon-${bid}`);
+}
+
 export async function createBackup(actor: Actor) {
   const data = JSON.stringify(await dumpAll({ includeSecrets: true }));
   const sha256 = createHash('sha256').update(data).digest('hex');
-  mkdirSync(config.backupDir, { recursive: true });
+  const dir = salonBackupDir();
+  mkdirSync(dir, { recursive: true });
   const filename = `backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-  writeFileSync(path.join(config.backupDir, filename), data, { mode: 0o600 });
+  writeFileSync(path.join(dir, filename), data, { mode: 0o600 });
   const row = await one<{ id: number; created_at: string }>(
     `INSERT INTO backups (kind, filename, size_bytes, sha256, created_by) VALUES ('JSON', $1, $2, $3, $4) RETURNING id, created_at`,
     [filename, Buffer.byteLength(data), sha256, actor.actorId],
@@ -59,7 +67,7 @@ export async function createBackup(actor: Actor) {
 
 export function readBackupFile(filename: string) {
   if (!/^backup-[\w-]+\.json$/.test(filename)) throw new ApiError(400, 'VALIDATION', 'Bad backup filename');
-  const p = path.join(config.backupDir, filename);
+  const p = path.join(salonBackupDir(), filename);
   if (!existsSync(p)) throw new ApiError(404, 'NOT_FOUND', 'Backup file is missing on disk');
   return readFileSync(p);
 }
@@ -80,6 +88,8 @@ export async function restoreBackup(actor: Actor, backup: any, expectedSha?: str
     throw new ApiError(409, 'RESTORE_TARGET_NOT_EMPTY', 'Restore only into an empty database: create a new DB, run db:migrate with SKIP_DEMO_SEED=true, then restore.');
   }
   const restored: Record<string, number> = {};
+  const bid = currentBusinessId();
+  if (bid === null) throw new ApiError(400, 'BUSINESS_REQUIRED', 'Restore must run inside a salon');
   await withTx(async (c) => {
     await c.query(`SELECT set_config('gc.write_path', 'restore', true)`);
     // Reference tables may hold defaults — replace them wholesale.
@@ -88,6 +98,8 @@ export async function restoreBackup(actor: Actor, backup: any, expectedSha?: str
       let rows = (backup.tables[t] ?? []) as any[];
       if (!rows.length) continue;
       if (t === 'gift_cards') rows = rows.map((r) => ({ ...r, replaced_by_card_id: null }));
+      // Rows land in the salon doing the restore, whatever salon id the file carries.
+      rows = rows.map((r) => ({ ...r, business_id: bid }));
       await c.query(`INSERT INTO ${t} SELECT * FROM json_populate_recordset(NULL::${t}, $1::json)`, [JSON.stringify(rows)]);
       restored[t] = rows.length;
     }

@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { one, pool } from './db.js';
+import { currentBusinessId, one, pool, query, runAsBusiness, runAsSystem } from './db.js';
 import { getAllSettings } from './settings.js';
 import { purgeIdempotencyKeys } from './idempotency.js';
 import { sendExpiryWarnings } from './services/messaging.js';
@@ -11,10 +11,28 @@ export async function runExpiry() {
   return r?.n ?? 0;
 }
 
+/** Active salons (or just the current one when called inside a salon). */
+async function salonIds(): Promise<number[]> {
+  const bid = currentBusinessId();
+  if (bid !== null) return [bid];
+  const { rows } = await runAsSystem(() => query<{ id: number }>(`SELECT id FROM businesses WHERE status = 'ACTIVE' ORDER BY id`));
+  return rows.map((r) => r.id);
+}
+
 export async function runNightly() {
+  // fn_expire_due_cards walks every salon itself when none is set.
   const expired = await runExpiry();
-  const warned = await sendExpiryWarnings((id) => getCard(id));
-  await purgeIdempotencyKeys();
+  let warned = 0;
+  for (const bid of await salonIds()) {
+    await runAsBusiness(bid, async () => {
+      try {
+        warned += await sendExpiryWarnings((id) => getCard(id));
+        await purgeIdempotencyKeys();
+      } catch (e) {
+        console.error(`[jobs] nightly failed for salon ${bid}`, e);
+      }
+    });
+  }
   console.info(`[jobs] nightly: expired=${expired} expiry_warnings=${warned}`);
   return { expired, warned };
 }

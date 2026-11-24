@@ -31,7 +31,7 @@ router.put('/settings/:key', requirePerm('settings.write'), async (req, res) => 
   const before = (await getAllSettings())[key];
   await query(
     `INSERT INTO settings (key, value, updated_by, updated_at) VALUES ($1, $2, $3, now())
-     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+     ON CONFLICT (business_id, key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = now()`,
     [key, JSON.stringify(value), req.user!.id],
   );
   invalidateSettings();
@@ -72,7 +72,8 @@ router.post('/tags', requirePerm('cards.edit'), async (req, res) => {
 
 router.delete('/tags/:id', requirePerm('settings.write'), async (req, res) => {
   const id = z.coerce.number().int().positive().parse(req.params.id);
-  await query('DELETE FROM card_tags WHERE id = $1', [id]);
+  const r = await query('DELETE FROM card_tags WHERE id = $1', [id]);
+  if (!r.rowCount) throw new ApiError(404, 'NOT_FOUND', 'Tag not found');
   await audit(actorOf(req), 'tag.deleted', { entityType: 'tag', entityId: id });
   res.json({ deleted: true });
 });

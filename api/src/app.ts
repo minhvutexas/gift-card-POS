@@ -10,6 +10,7 @@ import { errorHandler, notFound } from './errors.js';
 import { idempotency } from './idempotency.js';
 import { sseHandler } from './events.js';
 import { pool } from './db.js';
+import { requireBusiness, resolveTenant } from './tenant.js';
 import { router as authRoutes } from './routes/auth.js';
 import { router as cardRoutes } from './routes/cards.js';
 import { router as customerRoutes } from './routes/customers.js';
@@ -27,7 +28,7 @@ export function createApp() {
   app.use(
     cors({
       origin: config.corsOrigins.includes('*') ? true : config.corsOrigins,
-      allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Terminal-Key', 'X-Approval-Token'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Terminal-Key', 'X-Approval-Token', 'X-Business'],
       exposedHeaders: ['Idempotent-Replay', 'Content-Disposition', 'X-Checksum-SHA256', 'RateLimit', 'RateLimit-Policy'],
     }),
   );
@@ -51,6 +52,11 @@ export function createApp() {
   });
 
   const v1 = Router();
+
+  // Which salon is this request for? (terminal key → session → Salon ID).
+  // Everything after requireBusiness runs inside that salon's RLS context.
+  v1.use(resolveTenant);
+  v1.use(requireBusiness);
 
   // Public customer kiosk (rate limited; no staff session, terminal key optional)
   v1.use('/kiosk', kioskLimiter());
