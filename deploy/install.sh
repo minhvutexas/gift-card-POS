@@ -57,6 +57,7 @@ if [ ! -f "$ENV" ]; then
   sed -e "s|DB_PASSWORD|$DB_PASS|" \
       -e "s|^JWT_SECRET=.*|JWT_SECRET=$(openssl rand -hex 32)|" \
       -e "s|^QR_SECRET=.*|QR_SECRET=$(openssl rand -hex 32)|" \
+      -e "s|^PLATFORM_ADMIN_PASSWORD=.*|PLATFORM_ADMIN_PASSWORD=$(openssl rand -base64 18 | tr -d '/+=')|" \
       -e "s|pos.example.com|$DOMAIN|g" \
       "$APP/deploy/giftcard.env.example" > "$ENV"
 fi
@@ -101,9 +102,8 @@ fi
 sleep 2
 curl -fsS http://127.0.0.1:4000/health >/dev/null && echo "API healthy" || { echo "API not healthy: journalctl -u giftcard-api -n 50"; exit 1; }
 
-if ! sudo -u postgres psql -d giftcard -tAc "SELECT 1 FROM businesses LIMIT 1" | grep -q 1; then
-  log "Create your first salon + owner login"
-  sudo -u giftcard -H bash -c "cd $APP/api && set -a && . ./.env && set +a && npm run --silent setup:owner" </dev/tty
-fi
-
 log "Done -> https://$DOMAIN"
+echo "  Salons sign up at:   https://$DOMAIN/signup"
+echo "  Your admin page:     https://$DOMAIN/platform"
+echo "  Admin password:      $(sed -n 's/^PLATFORM_ADMIN_PASSWORD=//p' "$ENV")   (in $ENV)"
+echo "  Create a salon from the terminal instead: cd $APP/api && sudo -u giftcard npm run setup:owner"

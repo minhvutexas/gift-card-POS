@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { CreditCard, Lock, ShieldAlert } from 'lucide-react';
-import { api, ApiError } from '../../lib/api';
+import { api, ApiError, setBusinessOverride } from '../../lib/api';
 import { formatCents, signedCents } from '../../lib/money';
 import { STATUS } from '../../lib/status';
 import type { CardStatus } from '../../lib/types';
@@ -26,6 +27,11 @@ const IDLE_RESET_MS = 60_000;
  * rate-limits and returns one generic error for wrong number/PIN.
  */
 export function KioskPage() {
+  // /k/:slug names the salon; plain /kiosk uses this device's terminal key / Salon ID.
+  const { slug } = useParams();
+  setBusinessOverride(slug ?? null);
+  useEffect(() => () => setBusinessOverride(null), []);
+  const salon = useQuery({ queryKey: ['business', slug ?? ''], queryFn: () => api<{ slug: string; name: string }>('/business'), retry: false });
   const [params, setParams] = useSearchParams();
   const token = params.get('t');
   const [step, setStep] = useState<'number' | 'pin' | 'view'>(token ? 'view' : 'number');
@@ -101,6 +107,19 @@ export function KioskPage() {
     }
   };
 
+  const salonCode = salon.error instanceof ApiError ? salon.error.code : null;
+  if (salonCode === 'BUSINESS_NOT_FOUND' || salonCode === 'BUSINESS_SUSPENDED')
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 via-white to-pink-100 p-4 text-center dark:from-slate-950 dark:via-slate-900 dark:to-brand-950 dark:text-white">
+        <main className="max-w-md rounded-3xl bg-white p-6 shadow-xl dark:bg-slate-900">
+          <h1 className="text-2xl font-bold">{salonCode === 'BUSINESS_NOT_FOUND' ? 'We can’t find this salon' : 'Balance check is unavailable'}</h1>
+          <p className="mt-2 text-slate-600 dark:text-slate-300">
+            {salonCode === 'BUSINESS_NOT_FOUND' ? 'Check the link on your receipt, or ask the front desk for your balance.' : 'Please ask the front desk for your balance.'}
+          </p>
+        </main>
+      </div>
+    );
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-brand-50 via-white to-pink-100 p-4 text-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-brand-950 dark:text-white">
       <main className="w-full max-w-md">
@@ -108,7 +127,8 @@ export function KioskPage() {
           <div className="text-6xl" aria-hidden>
             🎁
           </div>
-          <h1 className="mt-2 text-3xl font-extrabold">Check your gift card</h1>
+          {salon.data && <p className="mt-2 text-lg font-semibold text-brand-700 dark:text-brand-300">{salon.data.name}</p>}
+          <h1 className="mt-1 text-3xl font-extrabold">Check your gift card</h1>
         </header>
 
         <div className="rounded-3xl bg-white p-6 shadow-xl dark:bg-slate-900">

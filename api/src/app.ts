@@ -11,6 +11,8 @@ import { idempotency } from './idempotency.js';
 import { sseHandler } from './events.js';
 import { pool } from './db.js';
 import { requireBusiness, resolveTenant } from './tenant.js';
+import { router as signupRoutes, businessInfo } from './routes/signup.js';
+import { router as platformRoutes } from './routes/platform.js';
 import { router as authRoutes } from './routes/auth.js';
 import { router as cardRoutes } from './routes/cards.js';
 import { router as customerRoutes } from './routes/customers.js';
@@ -53,10 +55,15 @@ export function createApp() {
 
   const v1 = Router();
 
+  // Salon-less routes: sign up a new salon, platform admin.
+  v1.use(signupRoutes);
+  v1.use(platformRoutes);
+
   // Which salon is this request for? (terminal key → session → Salon ID).
   // Everything after requireBusiness runs inside that salon's RLS context.
   v1.use(resolveTenant);
   v1.use(requireBusiness);
+  v1.use(businessInfo); // salon name for login screens and the kiosk
 
   // Public customer kiosk (rate limited; no staff session, terminal key optional)
   v1.use('/kiosk', kioskLimiter());

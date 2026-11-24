@@ -22,6 +22,13 @@ export class ApiError extends Error {
 
 const TOKEN_KEY = 'gc.session';
 const TERMINAL_KEY = 'gc.terminalKey';
+const BUSINESS_KEY = 'gc.business';
+
+/** Pages that are about one named salon (the /k/:slug kiosk) pin it here. */
+let businessOverride: string | null = null;
+export const setBusinessOverride = (slug: string | null) => {
+  businessOverride = slug;
+};
 
 const safe = <T,>(fn: () => T, fallback: T): T => {
   try {
@@ -43,6 +50,13 @@ export const store = {
   },
   set terminalKey(v: string | null) {
     safe(() => (v ? localStorage.setItem(TERMINAL_KEY, v) : localStorage.removeItem(TERMINAL_KEY)), undefined);
+  },
+  /** Salon ID typed on this device (only needed when it has no terminal key). */
+  get business(): string | null {
+    return safe(() => localStorage.getItem(BUSINESS_KEY), null);
+  },
+  set business(v: string | null) {
+    safe(() => (v ? localStorage.setItem(BUSINESS_KEY, v.trim().toLowerCase()) : localStorage.removeItem(BUSINESS_KEY)), undefined);
   },
 };
 
@@ -92,6 +106,9 @@ function headers(opts: RequestOpts, key?: string): Record<string, string> {
   if (t) h.Authorization = `Bearer ${t}`;
   const tk = store.terminalKey;
   if (tk) h['X-Terminal-Key'] = tk;
+  // A terminal key already names its salon; otherwise say which salon we mean.
+  const biz = businessOverride ?? (tk ? null : store.business);
+  if (biz) h['X-Business'] = biz;
   if (key) h['Idempotency-Key'] = key;
   if (opts.approvalToken) h['X-Approval-Token'] = opts.approvalToken;
   return h;

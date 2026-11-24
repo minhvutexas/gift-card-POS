@@ -62,6 +62,7 @@ router.get('/auth/me', authenticate, async (req, res) => {
   res.json({
     user: { id: req.user!.id, name: req.user!.name, username: req.user!.username, role: req.user!.role, permissions: [...req.user!.perms] },
     terminal: req.terminal ?? null,
+    business: { slug: req.business!.slug, name: req.business!.name },
     settings: { general: s.general, security: s.security, printer: s.printer, receipt: s.receipt, loyalty: s.loyalty },
   });
 });

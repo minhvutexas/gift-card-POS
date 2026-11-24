@@ -11,6 +11,8 @@ import { CustomersPage } from './features/customers/CustomersPage';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { KioskPage } from './features/kiosk/KioskPage';
 import { LockScreen, LoginPage } from './features/auth/LoginPage';
+import { SignupPage } from './features/signup/SignupPage';
+import { PlatformPage } from './features/platform/PlatformPage';
 
 /** Global keyboard shortcuts: Alt+N new card, Alt+R redeem. */
 function Shortcuts() {
@@ -78,6 +80,9 @@ export function App() {
     <>
       <Routes>
         <Route path="/kiosk" element={<KioskPage />} />
+        <Route path="/k/:slug" element={<KioskPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/platform" element={<PlatformPage />} />
         <Route path="/*" element={<Staff />} />
       </Routes>
       <Watermark />

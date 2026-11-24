@@ -19,6 +19,7 @@ export function verifyQrToken(token: string): number | null {
   return expected.length === given.length && timingSafeEqual(expected, given) ? id : null;
 }
 
-export const kioskUrl = (cardId: number) => `${config.publicUrl.replace(/\/$/, '')}/kiosk?t=${qrToken(cardId)}`;
+/** Customer balance link — each salon has its own kiosk page: /k/<Salon ID>. */
+export const kioskUrl = (cardId: number, slug: string) => `${config.publicUrl.replace(/\/$/, '')}/k/${slug}?t=${qrToken(cardId)}`;
 
 export const maskNumber = (n: string) => (n.length <= 4 ? n : `${'•'.repeat(Math.min(n.length - 4, 6))}${n.slice(-4)}`);

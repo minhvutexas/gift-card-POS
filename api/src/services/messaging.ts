@@ -5,6 +5,8 @@ import { formatCents } from '../money.js';
 import { getAllSettings } from '../settings.js';
 import type { Card, Txn } from './cards.js';
 import { kioskUrl, maskNumber } from './qr.js';
+import { currentBusinessId } from '../db.js';
+import { businessById } from '../tenant.js';
 
 export type MsgChannel = 'EMAIL' | 'SMS';
 export const TEMPLATE_KEYS = ['card_delivered', 'low_balance', 'reload_thanks', 'expiry_warning'] as const;
@@ -20,7 +22,7 @@ async function vars(card: Card, extra: Record<string, string> = {}) {
     first_name: card.customer?.first_name ?? 'there',
     card_masked: maskNumber(card.card_number),
     balance: formatCents(card.balance_cents, card.currency),
-    kiosk_url: kioskUrl(card.id),
+    kiosk_url: kioskUrl(card.id, (await businessById(currentBusinessId()!))?.slug ?? ''),
     expires_on: card.expires_at ? new Date(card.expires_at).toLocaleDateString('en-US', { timeZone: s.general.timezone }) : '',
     ...extra,
   };

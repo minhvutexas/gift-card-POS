@@ -36,6 +36,11 @@ export const config = {
   trustProxy: process.env.TRUST_PROXY ?? 'loopback',
   /** Salon ID used when a request names none (single-salon installs, dev, tests). */
   defaultBusiness: (process.env.DEFAULT_BUSINESS ?? '').trim().toLowerCase(),
+  /** Public self-service salon sign-up (POST /signup). */
+  signupEnabled: bool(process.env.SIGNUP_ENABLED, true),
+  signupPerHour: int(process.env.SIGNUP_PER_HOUR, 5),
+  /** Platform admin (/platform). Empty = platform admin disabled. */
+  platformAdminPassword: process.env.PLATFORM_ADMIN_PASSWORD ?? '',
   twilio: {
     sid: process.env.TWILIO_ACCOUNT_SID ?? '',
     token: process.env.TWILIO_AUTH_TOKEN ?? '',

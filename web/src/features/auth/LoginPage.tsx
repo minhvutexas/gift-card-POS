@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { KeyRound, MonitorSmartphone } from 'lucide-react';
+import { KeyRound, MonitorSmartphone, Store } from 'lucide-react';
 import { api, ApiError, store } from '../../lib/api';
 import { useSession } from '../../lib/session';
 import { PinPad } from '../../components/Keypad';
@@ -18,7 +19,12 @@ export function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [terminalKey, setTerminalKey] = useState(store.terminalKey ?? '');
-  const needsPairing = users.error instanceof ApiError && users.error.code.startsWith('TERMINAL');
+  const business = useQuery({ queryKey: ['business'], queryFn: () => api<{ slug: string; name: string }>('/business'), retry: false });
+  const salonErr = [users.error, business.error].find((e) => e instanceof ApiError && (e.code === 'BUSINESS_REQUIRED' || e.code === 'BUSINESS_NOT_FOUND')) as ApiError | undefined;
+  const [changingSalon, setChangingSalon] = useState(false);
+  const needsSalon = !!salonErr || changingSalon;
+  const needsPairing = !needsSalon && users.error instanceof ApiError && users.error.code.startsWith('TERMINAL');
+  const [salonId, setSalonId] = useState(store.business ?? '');
 
   const submitPin = async (p: string) => {
     setBusy(true);
@@ -40,11 +46,59 @@ export function LoginPage() {
           <div className="text-5xl" aria-hidden>
             🎁
           </div>
-          <h1 className="mt-2 text-2xl font-bold">Gift Card POS</h1>
+          <h1 className="mt-2 text-2xl font-bold">{business.data?.name ?? 'Gift Card POS'}</h1>
+          {business.data && !store.terminalKey && !needsSalon && (
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              Salon ID <span className="font-mono">{business.data.slug}</span> ·{' '}
+              <button type="button" className="font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-300" onClick={() => setChangingSalon(true)}>
+                Change
+              </button>
+            </p>
+          )}
           {authError === 'SESSION_EXPIRED' && <p className="mt-1 text-sm text-amber-700">Your session ended — please sign in again.</p>}
         </div>
 
-        {(mode === 'pair' || needsPairing) && (
+        {needsSalon && (
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              store.business = salonId.trim() || null;
+              window.location.reload();
+            }}
+          >
+            <p className="flex items-center gap-2 font-semibold">
+              <Store className="h-5 w-5" aria-hidden /> Which salon?
+            </p>
+            <Field
+              label="Salon ID"
+              htmlFor="salon"
+              error={salonErr?.code === 'BUSINESS_NOT_FOUND' && !changingSalon ? 'No salon has that Salon ID. Check the spelling with your manager.' : null}
+              hint="Your owner chose it at sign-up, e.g. lotus-nails."
+            >
+              <input
+                id="salon"
+                className={`${inputCls} font-mono lowercase`}
+                value={salonId}
+                onChange={(e) => setSalonId(e.target.value)}
+                autoComplete="organization"
+                autoCapitalize="none"
+                spellCheck={false}
+                autoFocus
+              />
+            </Field>
+            <Button type="submit" className="w-full" disabled={!salonId.trim()}>
+              Continue
+            </Button>
+            {changingSalon && (
+              <Button variant="ghost" className="w-full" onClick={() => setChangingSalon(false)}>
+                Back
+              </Button>
+            )}
+          </form>
+        )}
+
+        {!needsSalon && (mode === 'pair' || needsPairing) && (
           <form
             className="space-y-3"
             onSubmit={(e) => {
@@ -71,7 +125,7 @@ export function LoginPage() {
           </form>
         )}
 
-        {mode === 'pin' && !needsPairing && (
+        {mode === 'pin' && !needsPairing && !needsSalon && (
           <>
             {!!users.data?.data.length && (
               <div className="mb-4 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Who is signing in?">
@@ -105,7 +159,7 @@ export function LoginPage() {
           </>
         )}
 
-        {mode === 'password' && !needsPairing && (
+        {mode === 'password' && !needsPairing && !needsSalon && (
           <form
             className="space-y-3"
             onSubmit={async (e) => {
@@ -135,6 +189,13 @@ export function LoginPage() {
             </Button>
           </form>
         )}
+
+        <p className="mt-6 border-t border-slate-200 pt-4 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">
+          New salon?{' '}
+          <Link to="/signup" className="font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-300">
+            Create your account
+          </Link>
+        </p>
       </div>
     </div>
   );

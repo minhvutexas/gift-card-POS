@@ -84,7 +84,7 @@ export function Layout() {
             {n.label}
           </NavLink>
         ))}
-        <a href="/kiosk" target="_blank" rel="noopener" className="flex min-h-[56px] min-w-[56px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 md:mx-2">
+        <a href={me?.business ? `/k/${me.business.slug}` : '/kiosk'} target="_blank" rel="noopener" className="flex min-h-[56px] min-w-[56px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 md:mx-2">
           <ExternalLink className="h-6 w-6" aria-hidden />
           Kiosk ↗
         </a>

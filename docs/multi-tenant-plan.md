@@ -4,9 +4,10 @@ Goal: many salons sign up on one server. Each salon sees only its own
 cards, customers, staff, history and settings. Same stack as today:
 Express API + React (Vite) + PostgreSQL on Ubuntu.
 
-Status: **Phase 1 done** (database wall + API salon context + isolation
-tests). Phases 2-4 still to do: signup page, Salon ID on the login screen,
-kiosk at `/k/:slug`, platform admin, installer polish.
+Status: **Phases 1-3 done.** Salon walls, signup (`/signup`), Salon ID
+login, per-salon kiosk (`/k/<salon-id>`) and platform admin (`/platform`)
+are built and tested. Left: run the installer on a real server; later:
+billing, email (forgot password), subdomains.
 
 ### What phase 1 actually shipped (differs from the first draft)
 
