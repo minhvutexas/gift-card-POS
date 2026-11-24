@@ -151,11 +151,8 @@ New endpoints:
 
 Each phase is one commit, tested before the next.
 
-## 8. Open questions
+## 8. Decisions
 
-- **Billing:** charge salons now (Stripe) or free at first?
-- **Login address:** path + Salon ID (simple, works with today's HTTPS
-  setup) or subdomain per salon (nicer, but needs wildcard DNS + a
-  wildcard certificate)?
-- **Email:** forgot-password and email verification need an email
-  sender (SendGrid key already supported). Have one?
+- **Billing:** free in v1. Stripe later.
+- **Login address:** one site + Salon ID (path-based). No wildcard DNS.
+- **Email:** none in v1. The platform admin resets owner passwords by hand.
