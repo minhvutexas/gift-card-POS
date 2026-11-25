@@ -4,6 +4,11 @@
 #   git clone https://github.com/minhvutexas/gift-card-POS.git /tmp/gc
 #   sudo DOMAIN=pos.example.com EMAIL=you@example.com bash /tmp/gc/deploy/install.sh
 #
+# Behind a home router / no open ports? Use a Cloudflare Tunnel instead:
+#   sudo DOMAIN=pos.example.com TUNNEL=1 bash /tmp/gc/deploy/install.sh
+# (asks for the tunnel token from Cloudflare Zero Trust → Networks → Tunnels;
+#  Cloudflare then serves HTTPS, so no certificate, port 80/443 or fixed IP is needed)
+#
 # Installs Node 22, PostgreSQL, Nginx, builds the app into /opt/giftcard,
 # creates a clean database (no demo data), runs it as a systemd service,
 # and (if EMAIL is set and DNS points here) gets an HTTPS certificate.
@@ -12,6 +17,7 @@ set -euo pipefail
 
 : "${DOMAIN:?Set DOMAIN, e.g. sudo DOMAIN=pos.example.com bash install.sh}"
 EMAIL="${EMAIL:-}"
+TUNNEL="${TUNNEL:-0}"
 APP=/opt/giftcard
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_URL="${REPO_URL:-$(git -C "$SRC" remote get-url origin 2>/dev/null || true)}"
@@ -81,6 +87,15 @@ systemctl restart giftcard-api
 
 log "Nginx"
 sed "s|DOMAIN|$DOMAIN|g" "$APP/deploy/nginx-giftcard.conf" > /etc/nginx/sites-available/giftcard
+if [ "$TUNNEL" = 1 ]; then
+  # Only the local tunnel talks to Nginx. Take the visitor's real IP from
+  # Cloudflare's header (trusted from localhost only) so rate limits are per
+  # customer, and tell the app the outside connection is HTTPS.
+  sed -i -e 's|^    listen 80;|    listen 127.0.0.1:80;\n    set_real_ip_from 127.0.0.1;\n    real_ip_header CF-Connecting-IP;|' \
+         -e '/^    listen \[::\]:80;/d' \
+         -e 's|proxy_set_header X-Forwarded-Proto \$scheme;|proxy_set_header X-Forwarded-Proto https;|' \
+         /etc/nginx/sites-available/giftcard
+fi
 ln -sf /etc/nginx/sites-available/giftcard /etc/nginx/sites-enabled/giftcard
 rm -f /etc/nginx/sites-enabled/default
 chmod o+x /opt "$APP" "$APP/web"
@@ -88,13 +103,34 @@ nginx -t && systemctl reload nginx
 
 log "Firewall"
 ufw allow OpenSSH
-ufw allow 'Nginx Full'
+if [ "$TUNNEL" = 1 ]; then
+  ufw delete allow 'Nginx Full' >/dev/null 2>&1 || true   # tunnel: no inbound web ports
+else
+  ufw allow 'Nginx Full'
+fi
 ufw --force enable
 
 log "Nightly backup"
 install -m 755 "$APP/deploy/backup.sh" /etc/cron.daily/giftcard-backup
 
-if [ -n "$EMAIL" ]; then
+if [ "$TUNNEL" = 1 ]; then
+  log "Cloudflare Tunnel"
+  if ! command -v cloudflared >/dev/null; then
+    mkdir -p --mode=0755 /usr/share/keyrings
+    curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg -o /usr/share/keyrings/cloudflare-main.gpg
+    echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' > /etc/apt/sources.list.d/cloudflared.list
+    apt-get update -y && apt-get install -y cloudflared
+  fi
+  if systemctl is-active --quiet cloudflared; then
+    echo "cloudflared already running — keeping its tunnel"
+  else
+    echo "Paste the tunnel token (the long text after 'cloudflared service install'). It is not shown."
+    read -rs CF_TOKEN </dev/tty; echo
+    [ -n "$CF_TOKEN" ] || { echo "No token given. Re-run this script when you have it."; exit 1; }
+    cloudflared service install "$CF_TOKEN"
+    unset CF_TOKEN
+  fi
+elif [ -n "$EMAIL" ]; then
   log "HTTPS"
   apt-get install -y certbot python3-certbot-nginx
   certbot --nginx -d "$DOMAIN" -m "$EMAIL" --agree-tos --non-interactive --redirect \
