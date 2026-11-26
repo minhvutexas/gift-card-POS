@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { config } from '../config.js';
-import { assertOwnerUsernameFree, clientIp, issueSession, sha256 } from '../auth.js';
+import { clientIp, issueSession, sha256 } from '../auth.js';
 import { one, runAsBusiness, runAsSystem, withTx } from '../db.js';
 import { ApiError } from '../errors.js';
 import { audit } from '../audit.js';
@@ -44,17 +44,6 @@ async function slugTaken(slug: string) {
 
 const checkLimiter = rateLimit({ windowMs: 60_000, limit: 60, standardHeaders: 'draft-8', legacyHeaders: false, keyGenerator: (req) => clientIp(req) ?? 'unknown' });
 
-router.get('/signup/username-available', checkLimiter, async (req, res) => {
-  const u = String(req.query.username ?? '').trim();
-  if (!/^[A-Za-z0-9._-]{2,40}$/.test(u)) return res.json({ available: false, reason: 'Use 2–40 letters, numbers, dots, dashes or underscores.' });
-  try {
-    await assertOwnerUsernameFree(u);
-    res.json({ available: true });
-  } catch (e) {
-    res.json({ available: false, reason: (e as Error).message });
-  }
-});
-
 router.get('/signup/slug-available', checkLimiter, async (req, res) => {
   const parsed = slugSchema.safeParse(String(req.query.slug ?? ''));
   if (!parsed.success) return res.json({ available: false, reason: parsed.error.issues[0]?.message });
@@ -78,7 +67,6 @@ router.post('/signup', limiter(), async (req, res) => {
   if (!config.signupEnabled) throw new ApiError(403, 'SIGNUP_CLOSED', 'New salon sign-ups are closed. Contact support.');
   const b = signupBody.parse(req.body);
   if (await slugTaken(b.slug)) throw new ApiError(409, 'SLUG_TAKEN', 'That Salon ID is taken', 'slug');
-  await assertOwnerUsernameFree(b.username);
 
   const [passwordHash, pinHash] = await Promise.all([bcrypt.hash(b.password, 10), b.pin ? bcrypt.hash(b.pin, 10) : Promise.resolve(null)]);
   const terminalKey = `gct_${randomBytes(24).toString('base64url')}`;

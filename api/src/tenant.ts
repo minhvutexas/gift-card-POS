@@ -14,7 +14,10 @@ const TTL_MS = 15_000;
 const byId = new Map<number, { at: number; b: BusinessInfo | null }>();
 const bySlug = new Map<string, { at: number; b: BusinessInfo | null }>();
 
-async function loadBusiness(where: 'id' | 'slug', value: number | string): Promise<BusinessInfo | null> {
+async function loadBusiness(where: 'id' | 'slug' | 'cid', value: number | string): Promise<BusinessInfo | null> {
+  if (where === 'cid') {
+    return (await runAsSystem(() => one<BusinessInfo>(`SELECT id, lpad(cid::text, 5, '0') AS cid, slug, name, status FROM businesses WHERE cid = $1`, [value]))) ?? null;
+  }
   const cache = where === 'id' ? byId : bySlug;
   const hit = cache.get(value as never);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.b;
@@ -28,6 +31,8 @@ async function loadBusiness(where: 'id' | 'slug', value: number | string): Promi
 
 export const businessById = (id: number) => loadBusiness('id', id);
 export const businessBySlug = (slug: string) => loadBusiness('slug', slug.toLowerCase());
+/** CID typed by a person: "1", "00001" … "99999". */
+export const businessByCid = (cid: string) => (/^\d{1,5}$/.test(cid.trim()) && Number(cid) >= 1 ? loadBusiness('cid', Number(cid)) : Promise.resolve(null));
 
 export function invalidateBusiness() {
   byId.clear();

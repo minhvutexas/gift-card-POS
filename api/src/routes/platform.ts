@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.js';
-import { assertOwnerUsernameFree, clientIp, invalidateUser, sha256 } from '../auth.js';
+import { clientIp, invalidateUser, sha256 } from '../auth.js';
 import { one, query, runAsBusiness, runAsSystem } from '../db.js';
 import { ApiError, unauthorized } from '../errors.js';
 import { audit } from '../audit.js';
@@ -103,7 +103,7 @@ router.post('/platform/businesses/:id/reset-owner', async (req, res) => {
   const id = bizId(req);
   const b = z
     .object({
-      /** new sign-in name (unique across salons) — omit to keep */
+      /** new sign-in name (unique inside the salon) — omit to keep */
       username: z.string().trim().regex(/^[A-Za-z0-9._-]{2,40}$/, 'Username: 2–40 letters, numbers, . _ -').optional(),
       /** new password — omit to generate one (unless keep_password) */
       password: z.string().min(10, 'Password must be at least 10 characters').max(200).optional(),
@@ -115,7 +115,10 @@ router.post('/platform/businesses/:id/reset-owner', async (req, res) => {
     one<{ id: number; username: string }>(`SELECT id, username FROM users WHERE role = 'OWNER' ORDER BY active DESC, id LIMIT 1`),
   );
   if (!owner0) throw new ApiError(404, 'NOT_FOUND', 'This salon has no owner account');
-  if (b.username && b.username.toLowerCase() !== owner0.username.toLowerCase()) await assertOwnerUsernameFree(b.username, owner0.id);
+  if (b.username && b.username.toLowerCase() !== owner0.username.toLowerCase()) {
+    const clash = await runAsBusiness(id, () => one('SELECT 1 FROM users WHERE lower(username) = lower($1) AND id <> $2', [b.username, owner0.id]));
+    if (clash) throw new ApiError(409, 'USERNAME_TAKEN', 'Someone in this salon already has that username', 'username');
+  }
 
   const keep = !!b.keep_password && b.password === undefined;
   const chosen = b.password !== undefined;

@@ -2,13 +2,14 @@ import { Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import {
-  actorOf, authenticate, clientIp, issueApprovalToken, issueSession, revokeToken, verifyPassword, verifyPasswordAnySalon, verifyPin, can,
+  actorOf, authenticate, clientIp, issueApprovalToken, issueSession, revokeToken, verifyPassword, verifyPin, can,
   type ApprovalAction,
 } from '../auth.js';
 import { audit } from '../audit.js';
 import { query, runAsBusiness } from '../db.js';
 import { ApiError } from '../errors.js';
 import { getAllSettings } from '../settings.js';
+import { businessByCid } from '../tenant.js';
 import type { Actor } from '../types.js';
 
 export const router = Router();
@@ -37,22 +38,37 @@ router.get('/auth/users', async (_req, res) => {
 });
 
 /**
- * Owner password sign-in. Mounted BEFORE requireBusiness: with no salon in
- * the request (no terminal key / Salon ID), the username finds the salon.
+ * Owner sign-in: CID + username + password. Mounted BEFORE requireBusiness so
+ * it works with no salon in the request — the CID names the salon. On a
+ * paired device the terminal key already names it (a CID, if sent, must match).
  */
 export const loginRouter = Router();
 loginRouter.post('/auth/login', loginLimiter, async (req, res) => {
-  const b = z.object({ username: z.string().trim().min(1).max(40), password: z.string().min(1).max(200) }).parse(req.body);
-  if (req.business && !req.businessFromDefault) {
-    const u = await verifyPassword(b.username, b.password);
-    await audit(userActor(actorOf(req), u.id), 'auth.login', { entityType: 'user', entityId: u.id, payload: { method: 'password' } });
-    return res.json(await sessionPayload(u, req.terminal?.id ?? null, 'password'));
+  const b = z
+    .object({
+      cid: z.string().trim().max(5).optional(),
+      username: z.string().trim().min(1).max(40),
+      password: z.string().min(1).max(200),
+    })
+    .parse(req.body);
+  const named = req.business && !req.businessFromDefault ? req.business : null;
+  let biz = named;
+  if (b.cid) {
+    const byCid = await businessByCid(b.cid);
+    if (!byCid) throw new ApiError(401, 'LOGIN_INVALID', 'Incorrect CID, username or password');
+    if (named && named.id !== byCid.id) throw new ApiError(401, 'LOGIN_INVALID', 'This device belongs to another salon — check the CID');
+    biz = byCid;
   }
-  const { user, businessId } = await verifyPasswordAnySalon(b.username, b.password);
+  if (!biz) throw new ApiError(400, 'VALIDATION', 'Enter your CID', 'cid');
+  if (biz.status !== 'ACTIVE') throw new ApiError(403, 'BUSINESS_SUSPENDED', 'This salon account is suspended. Contact support.');
+  const terminalId = named ? (req.terminal?.id ?? null) : null;
   res.json(
-    await runAsBusiness(businessId, async () => {
-      await audit(userActor(actorOf(req), user.id), 'auth.login', { entityType: 'user', entityId: user.id, payload: { method: 'password' } });
-      return sessionPayload(user, null, 'password');
+    await runAsBusiness(biz.id, async () => {
+      const u = await verifyPassword(b.username, b.password).catch((e) => {
+        throw e instanceof ApiError && e.code === 'LOGIN_INVALID' ? new ApiError(401, 'LOGIN_INVALID', 'Incorrect CID, username or password') : e;
+      });
+      await audit(userActor(actorOf(req), u.id), 'auth.login', { entityType: 'user', entityId: u.id, payload: { method: 'password' } });
+      return sessionPayload(u, terminalId, 'password');
     }),
   );
 });

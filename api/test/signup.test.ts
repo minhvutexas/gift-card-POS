@@ -79,23 +79,31 @@ describe('signup', () => {
     expect(ok.body.user.username).toBe('Mai.Nguyen');
     const bad = await signup({ slug: `${slug}-x`, username: 'has space' });
     expect(bad.status).toBe(400);
-    const taken = await signup({ slug: `${slug}-y`, username: 'MAI.NGUYEN' }); // owner usernames are unique across salons
-    expect(taken.status).toBe(409);
-    expect(taken.body.code).toBe('USERNAME_TAKEN');
+    const same = await signup({ slug: `${slug}-y`, username: 'MAI.NGUYEN' }); // usernames only need to be unique inside a salon
+    expect(same.status).toBe(201);
     expect(bad.status).toBe(400);
   });
 
-  it('owner signs in with just username + password (no Salon ID), PIN is optional at sign-up', async () => {
+  it('owner signs in with CID + username + password; PIN is optional at sign-up', async () => {
     const slug = `nopin-${Date.now().toString(36)}`;
-    const user = `nopin.${Date.now().toString(36)}`;
-    const r = await signup({ slug, username: user, pin: undefined });
+    const r = await signup({ slug, username: 'owner', pin: undefined }); // same username as other salons: fine
     expect(r.status).toBe(201);
-    const login = await request(app).post('/api/v1/auth/login').send({ username: user.toUpperCase(), password: 'correct-horse-1' });
+    const cid = r.body.business.cid as string;
+    const login = await request(app).post('/api/v1/auth/login').send({ cid, username: 'OWNER', password: 'correct-horse-1' });
     expect(login.status).toBe(200);
     const biz = await request(app).get('/api/v1/business').set({ Authorization: `Bearer ${login.body.token}` });
     expect(biz.body.slug).toBe(slug);
-    expect((await request(app).post('/api/v1/auth/login').send({ username: user, password: 'wrong-password' })).status).toBe(401);
-    expect((await request(app).post('/api/v1/auth/login').send({ username: 'nobody-here', password: 'whatever-123' })).status).toBe(401);
+    // CID typed without leading zeros works too
+    expect((await request(app).post('/api/v1/auth/login').send({ cid: String(Number(cid)), username: 'owner', password: 'correct-horse-1' })).status).toBe(200);
+    // CID is required, and all three must match
+    const noCid = await request(app).post('/api/v1/auth/login').send({ username: 'owner', password: 'correct-horse-1' });
+    expect(noCid.status).toBe(400);
+    expect(noCid.body.field).toBe('cid');
+    expect((await request(app).post('/api/v1/auth/login').send({ cid: '99999', username: 'owner', password: 'correct-horse-1' })).status).toBe(401);
+    expect((await request(app).post('/api/v1/auth/login').send({ cid, username: 'owner', password: 'wrong-password' })).status).toBe(401);
+    expect((await request(app).post('/api/v1/auth/login').send({ cid, username: 'nobody-here', password: 'correct-horse-1' })).status).toBe(401);
+    // another salon's owner password doesn't open this CID
+    expect((await request(app).post('/api/v1/auth/login').send({ cid, username: 'owner', password: 'owner123' })).status).toBe(401);
   });
 
   it('only owners may use a password', async () => {
@@ -103,13 +111,9 @@ describe('signup', () => {
     const r = await request(app).post('/api/v1/auth/login').set('X-Business', DEMO_SLUG).send({ username: 'manager', password: 'manager123' });
     expect(r.status).toBe(403);
     expect(r.body.code).toBe('PASSWORD_LOGIN_OWNER_ONLY');
-    const any = await request(app).post('/api/v1/auth/login').send({ username: 'manager', password: 'manager123' });
+    const demoCid = (await request(app).get('/api/v1/business').set('X-Business', DEMO_SLUG)).body.cid;
+    const any = await request(app).post('/api/v1/auth/login').send({ cid: demoCid, username: 'manager', password: 'manager123' });
     expect(any.status).toBe(403);
-  });
-
-  it('username availability check', async () => {
-    expect((await request(app).get(`/api/v1/signup/username-available?username=${OWNER}`)).body.available).toBe(false);
-    expect((await request(app).get(`/api/v1/signup/username-available?username=free-${Date.now()}`)).body.available).toBe(true);
   });
 
   it('owner can log in with Salon ID + password or PIN', async () => {
@@ -187,19 +191,20 @@ describe('platform admin', () => {
 
   it('admin can rename the owner login (keeping or changing the password) and sees it in the list', async () => {
     const list = await request(app).get('/api/v1/platform/businesses').set(asP());
-    expect(list.body.data.find((b: any) => b.id === bizId).owner_username).toBe(OWNER);
+    const mine = list.body.data.find((b: any) => b.id === bizId);
+    expect(mine.owner_username).toBe(OWNER);
 
     const newName = `${OWNER}-renamed`;
     const r = await request(app).post(`/api/v1/platform/businesses/${bizId}/reset-owner`).set(asP()).send({ username: newName, keep_password: true });
     expect(r.status).toBe(200);
     expect(r.body.username).toBe(newName);
     expect(r.body.temporary_password).toBeUndefined();
-    expect((await request(app).post('/api/v1/auth/login').send({ username: newName, password: 'admin-picked-pass-1' })).status).toBe(200);
-    expect((await request(app).post('/api/v1/auth/login').send({ username: OWNER, password: 'admin-picked-pass-1' })).status).toBe(401);
+    const cid = mine.cid;
+    expect((await request(app).post('/api/v1/auth/login').send({ cid, username: newName, password: 'admin-picked-pass-1' })).status).toBe(200);
+    expect((await request(app).post('/api/v1/auth/login').send({ cid, username: OWNER, password: 'admin-picked-pass-1' })).status).toBe(401);
 
-    const taken = await request(app).post(`/api/v1/platform/businesses/${bizId}/reset-owner`).set(asP()).send({ username: 'MAI.NGUYEN', keep_password: true });
-    expect(taken.status).toBe(409);
-    expect(taken.body.code).toBe('USERNAME_TAKEN');
+    // a name used in ANOTHER salon is fine
+    expect((await request(app).post(`/api/v1/platform/businesses/${bizId}/reset-owner`).set(asP()).send({ username: 'MAI.NGUYEN', keep_password: true })).status).toBe(200);
 
     // put it back for the tests below
     expect((await request(app).post(`/api/v1/platform/businesses/${bizId}/reset-owner`).set(asP()).send({ username: OWNER, keep_password: true })).status).toBe(200);

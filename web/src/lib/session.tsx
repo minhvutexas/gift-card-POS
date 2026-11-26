@@ -9,7 +9,7 @@ interface SessionCtx {
   locked: boolean;
   can: (perm: string) => boolean;
   loginPin: (pin: string, userId?: number) => Promise<void>;
-  loginPassword: (username: string, password: string) => Promise<void>;
+  loginPassword: (cid: string, username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   unlock: (pin: string) => Promise<void>;
   lock: () => void;
@@ -67,7 +67,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   };
 
   const loginPin = async (pin: string, userId?: number) => accept(await api('/auth/pin-login', { body: { pin, user_id: userId } }));
-  const loginPassword = async (username: string, password: string) => accept(await api('/auth/login', { body: { username, password } }));
+  const loginPassword = async (cid: string, username: string, password: string) => accept(await api('/auth/login', { body: { cid, username, password } }));
   const logout = async () => {
     try {
       await api('/auth/logout', { method: 'POST', body: {} });

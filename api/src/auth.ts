@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { config } from './config.js';
-import { currentBusinessId, one, query, runAsSystem } from './db.js';
+import { currentBusinessId, one, query } from './db.js';
 import { ApiError, forbidden, unauthorized } from './errors.js';
 import { getSetting } from './settings.js';
 import type { Actor, AuthUser, TerminalInfo } from './types.js';
@@ -236,41 +236,6 @@ export async function verifyPassword(username: string, password: string): Promis
   return u;
 }
 
-/**
- * Password sign-in with no salon named: the username finds the salon.
- * Owner usernames are unique across salons (enforced at sign-up and in
- * Staff & PINs); older duplicates are told apart by the password.
- */
-export async function verifyPasswordAnySalon(username: string, password: string): Promise<{ user: UserRow; businessId: number }> {
-  const { rows } = await runAsSystem(() =>
-    query<UserRow & { business_id: number; status: string }>(
-      `SELECT u.id, u.name, u.username, u.role::text, u.pin_hash, u.password_hash, u.failed_pin_attempts, u.locked_until,
-              u.business_id, b.status
-       FROM users u JOIN businesses b ON b.id = u.business_id
-       WHERE lower(u.username) = lower($1) AND u.active AND u.password_hash IS NOT NULL
-       ORDER BY u.id LIMIT 20`,
-      [username],
-    ),
-  );
-  if (!rows.length) await bcrypt.compare(password, DUMMY_HASH);
-  const hits: typeof rows = [];
-  for (const r of rows) if (await bcrypt.compare(password, r.password_hash!)) hits.push(r);
-  if (!hits.length) throw new ApiError(401, 'LOGIN_INVALID', 'Incorrect username or password');
-  if (hits.length > 1) throw new ApiError(409, 'LOGIN_AMBIGUOUS', 'This username is used in more than one salon. Contact support to rename it.');
-  const u = hits[0]!;
-  if (u.role !== 'OWNER') throw ownerOnly();
-  if (u.status !== 'ACTIVE') throw new ApiError(403, 'BUSINESS_SUSPENDED', 'This salon account is suspended. Contact support.');
-  const { business_id, status: _s, ...user } = u;
-  return { user, businessId: business_id };
-}
-
-/** Owner usernames must be unique across ALL salons (they sign in with no Salon ID). */
-export async function assertOwnerUsernameFree(username: string, exceptUserId?: number) {
-  const taken = await runAsSystem(() =>
-    one(`SELECT 1 FROM users WHERE lower(username) = lower($1) AND role = 'OWNER' AND id IS DISTINCT FROM $2::bigint`, [username, exceptUserId ?? null]),
-  );
-  if (taken) throw new ApiError(409, 'USERNAME_TAKEN', 'That username is taken. Owner usernames are shared by all salons — pick another.', 'username');
-}
 
 // ---------------------------------------------------------------- manager step-up approvals
 export type ApprovalAction = 'void' | 'adjust' | 'archive' | 'refund' | 'large_amount' | 'reverse' | 'restore' | 'erase' | 'delete' | 'bulk_void';

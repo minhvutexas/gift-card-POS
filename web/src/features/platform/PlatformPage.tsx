@@ -319,7 +319,7 @@ function Salons({ onLogout }: { onLogout: () => void }) {
             <p className="text-sm text-slate-600 dark:text-slate-300">
               CID <span className="font-mono font-semibold">{pending.salon.cid}</span> · Passwords are stored scrambled, so nobody can read the current one — you can only set a new one.
             </p>
-            <Field label="Username" htmlFor="ownu" hint="Unique across all salons. The owner signs in with it." error={newUsername && !/^[A-Za-z0-9._-]{2,40}$/.test(newUsername.trim()) ? 'Use 2–40 letters, numbers, dots, dashes or underscores.' : null}>
+            <Field label="Username" htmlFor="ownu" hint="The owner signs in with the CID, this username and the password." error={newUsername && !/^[A-Za-z0-9._-]{2,40}$/.test(newUsername.trim()) ? 'Use 2–40 letters, numbers, dots, dashes or underscores.' : null}>
               <input id="ownu" className={`${inputCls} font-mono`} value={newUsername} onChange={(e) => setNewUsername(e.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} />
             </Field>
             <p className="pt-1 text-sm font-semibold">Password</p>

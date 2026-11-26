@@ -32,6 +32,14 @@ export function LoginPage() {
   const [pin, setPin] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The CID is remembered on this device after a successful sign-in.
+  const [cid, setCid] = useState(() => {
+    try {
+      return localStorage.getItem('gc.cid') ?? '';
+    } catch {
+      return '';
+    }
+  });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [terminalKey, setTerminalKey] = useState(store.terminalKey ?? '');
@@ -71,7 +79,13 @@ export function LoginPage() {
               setBusy(true);
               setErr(null);
               try {
-                await loginPassword(username.trim(), password);
+                const c = (cid.trim() || business.data?.cid || '').replace(/\D/g, '');
+                await loginPassword(c, username.trim(), password);
+                try {
+                  localStorage.setItem('gc.cid', c.padStart(5, '0'));
+                } catch {
+                  /* private mode */
+                }
               } catch (x) {
                 setErr(x instanceof ApiError ? x.message : 'Login failed');
               } finally {
@@ -82,13 +96,24 @@ export function LoginPage() {
             <p className="flex items-center gap-2 font-semibold">
               <KeyRound className="h-5 w-5" aria-hidden /> Owner sign-in
             </p>
+            <Field label="CID" htmlFor="cid" hint="Your 5-digit client ID, e.g. 00012.">
+              <input
+                id="cid"
+                inputMode="numeric"
+                className={`${inputCls} font-mono tracking-widest`}
+                value={cid || business.data?.cid || ''}
+                onChange={(e) => (setCid(e.target.value.replace(/\D/g, '').slice(0, 5)), setErr(null))}
+                autoComplete="organization"
+                autoFocus={!cid}
+              />
+            </Field>
             <Field label="Username" htmlFor="u">
-              <input id="u" className={inputCls} autoComplete="username" autoCapitalize="none" spellCheck={false} value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+              <input id="u" className={inputCls} autoComplete="username" autoCapitalize="none" spellCheck={false} value={username} onChange={(e) => (setUsername(e.target.value), setErr(null))} autoFocus={!!cid} />
             </Field>
             <Field label="Password" htmlFor="p" error={err}>
-              <input id="p" type="password" className={inputCls} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <input id="p" type="password" className={inputCls} autoComplete="current-password" value={password} onChange={(e) => (setPassword(e.target.value), setErr(null))} />
             </Field>
-            <Button type="submit" className="w-full" loading={busy} disabled={!username.trim() || !password}>
+            <Button type="submit" className="w-full" loading={busy} disabled={!(cid || business.data?.cid) || !username.trim() || !password}>
               Sign in
             </Button>
             {paired && !keyBroken ? (

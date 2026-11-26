@@ -86,34 +86,13 @@ export function SignupPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [f.slug]);
 
-  // Live username check (owner usernames are unique across all salons)
-  const [userState, setUserState] = useState<{ u: string; ok: boolean; reason?: string } | null>(null);
-  useEffect(() => {
-    if (errors.username) {
-      setUserState(null);
-      return;
-    }
-    const u = f.username.trim();
-    const t = window.setTimeout(async () => {
-      try {
-        const r = await api<{ available: boolean; reason?: string }>(`/signup/username-available?username=${encodeURIComponent(u)}`);
-        setUserState({ u, ok: r.available, reason: r.reason });
-      } catch {
-        setUserState(null);
-      }
-    }, 350);
-    return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [f.username]);
-  const userTaken = userState && userState.u === f.username.trim() && !userState.ok ? (userState.reason ?? 'That username is taken.') : undefined;
-
   const slugTaken = slugState && slugState.slug === f.slug && !slugState.ok ? (slugState.reason ?? 'That Salon ID is taken.') : undefined;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setTouched({ salon_name: true, slug: true, owner_name: true, email: true, username: true, password: true });
     setFormErr(null);
-    if (Object.keys(errors).length || slugTaken || userTaken) return;
+    if (Object.keys(errors).length || slugTaken) return;
     setBusy(true);
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -174,8 +153,8 @@ export function SignupPage() {
               <Field
                 label="Username"
                 htmlFor="un"
-                error={shown('username') ?? userTaken}
-                hint={userState?.ok && userState.u === f.username.trim() ? <span className="text-emerald-700 dark:text-emerald-400">Available — you sign in with this and your password</span> : 'You sign in with this and your password. It must be unique.'}
+                error={shown('username')}
+                hint="You sign in with your CID, this username and your password."
               >
                 <input
                   id="un"
