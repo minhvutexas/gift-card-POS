@@ -18,6 +18,8 @@ set -euo pipefail
 : "${DOMAIN:?Set DOMAIN, e.g. sudo DOMAIN=pos.example.com bash install.sh}"
 EMAIL="${EMAIL:-}"
 TUNNEL="${TUNNEL:-0}"
+# Tunnel mode: private local port for Nginx (won't clash with anything on 80).
+TUNNEL_PORT="${TUNNEL_PORT:-8088}"
 APP=/opt/giftcard
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_URL="${REPO_URL:-$(git -C "$SRC" remote get-url origin 2>/dev/null || true)}"
@@ -91,7 +93,7 @@ if [ "$TUNNEL" = 1 ]; then
   # Only the local tunnel talks to Nginx. Take the visitor's real IP from
   # Cloudflare's header (trusted from localhost only) so rate limits are per
   # customer, and tell the app the outside connection is HTTPS.
-  sed -i -e 's|^    listen 80;|    listen 127.0.0.1:80;\n    set_real_ip_from 127.0.0.1;\n    real_ip_header CF-Connecting-IP;|' \
+  sed -i -e "s|^    listen 80;|    listen 127.0.0.1:$TUNNEL_PORT;\n    set_real_ip_from 127.0.0.1;\n    real_ip_header CF-Connecting-IP;|" \
          -e '/^    listen \[::\]:80;/d' \
          -e 's|proxy_set_header X-Forwarded-Proto \$scheme;|proxy_set_header X-Forwarded-Proto https;|' \
          /etc/nginx/sites-available/giftcard
@@ -144,6 +146,7 @@ sleep 2
 curl -fsS http://127.0.0.1:4000/health >/dev/null && echo "API healthy" || { echo "API not healthy: journalctl -u giftcard-api -n 50"; exit 1; }
 
 log "Done -> https://$DOMAIN"
+[ "$TUNNEL" = 1 ] && echo "  Cloudflare tunnel URL must be:  HTTP  127.0.0.1:$TUNNEL_PORT"
 echo "  Salons sign up at:   https://$DOMAIN/signup"
 echo "  Your admin page:     https://$DOMAIN/platform"
 echo "  Admin password:      $(sed -n 's/^PLATFORM_ADMIN_PASSWORD=//p' "$ENV")   (in $ENV)"
