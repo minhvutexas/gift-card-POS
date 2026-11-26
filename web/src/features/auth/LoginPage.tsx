@@ -98,7 +98,7 @@ export function LoginPage() {
           </form>
         )}
 
-        {!needsSalon && (mode === 'pair' || needsPairing) && (
+        {!needsSalon && mode !== 'password' && (mode === 'pair' || needsPairing) && (
           <form
             className="space-y-3"
             onSubmit={(e) => {
@@ -117,7 +117,14 @@ export function LoginPage() {
             <Button type="submit" className="w-full" disabled={!terminalKey.trim()}>
               Save & continue
             </Button>
-            {!needsPairing && (
+            {needsPairing ? (
+              <>
+                <p className="pt-2 text-center text-sm text-slate-600 dark:text-slate-300">Owner or manager on your own phone or computer?</p>
+                <Button variant="secondary" className="w-full" onClick={() => setMode('password')}>
+                  <KeyRound className="h-4 w-4" /> Sign in with password
+                </Button>
+              </>
+            ) : (
               <Button variant="ghost" className="w-full" onClick={() => setMode('pin')}>
                 Back
               </Button>
@@ -159,7 +166,7 @@ export function LoginPage() {
           </>
         )}
 
-        {mode === 'password' && !needsPairing && !needsSalon && (
+        {mode === 'password' && !needsSalon && (
           <form
             className="space-y-3"
             onSubmit={async (e) => {
@@ -184,9 +191,10 @@ export function LoginPage() {
             <Button type="submit" className="w-full" loading={busy}>
               Sign in
             </Button>
-            <Button variant="ghost" className="w-full" onClick={() => setMode('pin')}>
-              Use PIN instead
+            <Button variant="ghost" className="w-full" onClick={() => setMode(needsPairing ? 'pair' : 'pin')}>
+              {needsPairing ? 'Pair this device instead' : 'Use PIN instead'}
             </Button>
+            {needsPairing && <p className="text-center text-xs text-slate-600 dark:text-slate-300">PIN sign-in works only on paired front-desk devices.</p>}
           </form>
         )}
 

@@ -39,9 +39,30 @@ export async function terminalMiddleware(req: Request, _res: Response, next: Nex
       query('UPDATE terminals SET last_seen_at = now() WHERE id = $1', [t.id]).catch(() => {});
     }
   } else if (config.requireTerminalKey) {
+    // Unpaired device: only password sign-in, and the session it produced.
+    // PIN sign-in (short, guessable) stays on paired front-desk devices.
+    if (req.method === 'POST' && req.path === '/auth/login') return next();
+    if (isPasswordSession(req)) return next();
     return next(unauthorized('This device is not paired. Enter the terminal key in Settings › Terminal.', 'TERMINAL_REQUIRED'));
   }
   next();
+}
+
+function bearer(req: Request): string | undefined {
+  const header = req.get('authorization');
+  return header?.startsWith('Bearer ') ? header.slice(7) : typeof req.query.access_token === 'string' ? req.query.access_token : undefined;
+}
+
+/** A session from username+password sign-in on an unpaired device (authenticate() does the full check). */
+function isPasswordSession(req: Request): boolean {
+  const token = bearer(req);
+  if (!token) return false;
+  try {
+    const c = jwt.verify(token, config.jwtSecret) as Partial<SessionClaims>;
+    return c.typ === 'session' && c.m === 'password' && !c.tid;
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------- permissions
@@ -84,13 +105,15 @@ interface SessionClaims {
   typ: 'session';
   tid: number | null;
   bid: number;
+  /** how the session was started: PIN (paired device only) or password */
+  m: 'pin' | 'password';
 }
 
-export async function issueSession(user: { id: number }, terminalId: number | null) {
+export async function issueSession(user: { id: number }, terminalId: number | null, method: 'pin' | 'password' = 'pin') {
   const { session_timeout_min } = await getSetting('security');
   const bid = currentBusinessId();
   if (bid === null) throw new ApiError(400, 'BUSINESS_REQUIRED', 'Enter your Salon ID to continue', 'business');
-  const token = jwt.sign({ typ: 'session', tid: terminalId, bid } satisfies Omit<SessionClaims, 'sub'>, config.jwtSecret, {
+  const token = jwt.sign({ typ: 'session', tid: terminalId, bid, m: method } satisfies Omit<SessionClaims, 'sub'>, config.jwtSecret, {
     subject: String(user.id),
     expiresIn: session_timeout_min * 60,
     jwtid: randomUUID(),

@@ -22,8 +22,8 @@ const loginLimiter = rateLimit({
   handler: (_req, res) => res.status(429).type('application/problem+json').json({ status: 429, code: 'RATE_LIMITED', message: 'Too many login attempts — wait a minute' }),
 });
 
-async function sessionPayload(user: { id: number; name: string; username: string; role: string }, terminalId: number | null) {
-  const session = await issueSession(user, terminalId);
+async function sessionPayload(user: { id: number; name: string; username: string; role: string }, terminalId: number | null, method: 'pin' | 'password') {
+  const session = await issueSession(user, terminalId, method);
   await query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);
   return { ...session, user: { id: user.id, name: user.name, username: user.username, role: user.role } };
 }
@@ -40,14 +40,14 @@ router.post('/auth/login', loginLimiter, async (req, res) => {
   const b = z.object({ username: z.string().min(1).max(40), password: z.string().min(1).max(200) }).parse(req.body);
   const u = await verifyPassword(b.username, b.password);
   await audit(userActor(actorOf(req), u.id), 'auth.login', { entityType: 'user', entityId: u.id, payload: { method: 'password' } });
-  res.json(await sessionPayload(u, req.terminal?.id ?? null));
+  res.json(await sessionPayload(u, req.terminal?.id ?? null, 'password'));
 });
 
 router.post('/auth/pin-login', loginLimiter, async (req, res) => {
   const b = z.object({ pin: z.string().regex(/^\d{4,8}$/, 'PIN must be 4–8 digits'), user_id: z.number().int().positive().optional() }).parse(req.body);
   const u = await verifyPin(b.pin, { userId: b.user_id });
   await audit(userActor(actorOf(req), u.id), 'auth.login', { entityType: 'user', entityId: u.id, payload: { method: 'pin' } });
-  res.json(await sessionPayload(u, req.terminal?.id ?? null));
+  res.json(await sessionPayload(u, req.terminal?.id ?? null, 'pin'));
 });
 
 router.post('/auth/logout', authenticate, async (req, res) => {

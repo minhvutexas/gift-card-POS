@@ -153,7 +153,10 @@ export async function api<T = any>(path: string, opts: RequestOpts = {}): Promis
       approvalToken = tok;
       continue; // retry same request, same idempotency key
     }
-    if (res.status === 401 && ['SESSION_INVALID', 'UNAUTHENTICATED', 'TERMINAL_REQUIRED', 'TERMINAL_INVALID'].includes(err.code)) {
+    // Only a signed-in session can be "ended". Without one (login screen) the
+    // error just goes back to the caller — clearing state here would wipe the
+    // login screen's own queries.
+    if (res.status === 401 && store.token && ['SESSION_INVALID', 'UNAUTHENTICATED', 'TERMINAL_REQUIRED', 'TERMINAL_INVALID'].includes(err.code)) {
       authListeners.forEach((l) => l(err.code));
     }
     throw err;
