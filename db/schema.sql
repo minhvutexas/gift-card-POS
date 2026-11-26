@@ -531,6 +531,11 @@ CREATE TRIGGER trg_customers_touch_updated_at
 CREATE OR REPLACE FUNCTION fn_forbid_mutation() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
+  -- Only exception: fn_purge_business deleting a whole salon (its rows only).
+  IF TG_OP = 'DELETE' AND TG_LEVEL = 'ROW'
+     AND OLD.business_id::TEXT = current_setting('gc.purge_business', true) THEN
+    RETURN OLD;
+  END IF;
   RAISE EXCEPTION USING ERRCODE = 'GC409',
     MESSAGE = format('%s is append-only: %s is not allowed', TG_TABLE_NAME, TG_OP);
 END $$;
@@ -1154,6 +1159,32 @@ BEGIN
   UPDATE message_log SET recipient = NULL WHERE customer_id = p_customer_id;
   PERFORM fn_audit('USER', p_actor_id, NULL, 'customer', p_customer_id::TEXT, NULL, 'customer.erased',
                    jsonb_build_object('note', 'GDPR erasure'));
+END $$;
+
+-- 6.15b Delete a whole salon (platform admin). Runs inside that salon's RLS
+--       context, so even a bug here cannot touch another salon's rows.
+CREATE OR REPLACE FUNCTION fn_purge_business(p_bid BIGINT) RETURNS JSONB
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE v_counts JSONB := '{}'::jsonb; v_n INT; t TEXT;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM businesses WHERE id = p_bid) THEN
+    RAISE EXCEPTION USING ERRCODE = 'GC404', MESSAGE = 'Salon not found';
+  END IF;
+  PERFORM set_config('app.system', '', true);
+  PERFORM set_config('app.business_id', p_bid::TEXT, true);
+  PERFORM set_config('gc.purge_business', p_bid::TEXT, true);
+  -- children before parents
+  FOREACH t IN ARRAY ARRAY['gift_card_tags','message_log','audit_log','gift_card_transactions','gift_cards',
+      'customers','card_tags','message_templates','settings','role_permissions','import_jobs','backups',
+      'idempotency_keys','terminals','users'] LOOP
+    EXECUTE format('DELETE FROM %I WHERE business_id = $1', t) USING p_bid;
+    GET DIAGNOSTICS v_n = ROW_COUNT;
+    v_counts := v_counts || jsonb_build_object(t, v_n);
+  END LOOP;
+  DELETE FROM businesses WHERE id = p_bid;
+  PERFORM set_config('gc.purge_business', '', true);
+  PERFORM set_config('app.business_id', '', true);
+  RETURN v_counts;
 END $$;
 
 -- 6.16 Optional pg_cron schedule (silently skipped when pg_cron is unavailable;

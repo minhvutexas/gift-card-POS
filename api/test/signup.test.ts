@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
 import { createApp } from '../src/app.js';
-import { pool } from '../src/db.js';
+import { one, pool, query, runAsSystem } from '../src/db.js';
 import { DEMO_SLUG } from './helpers.js';
 
 let app: Express;
@@ -134,6 +134,49 @@ describe('platform admin', () => {
     expect(k.status).toBe(201);
     const viaKey = await request(app).post('/api/v1/auth/pin-login').set('X-Terminal-Key', k.body.api_key).send({ pin: '2468' });
     expect(viaKey.status).toBe(200);
+  });
+
+  it('reset can use a password the admin chooses', async () => {
+    const short = await request(app).post(`/api/v1/platform/businesses/${bizId}/reset-owner`).set(asP()).send({ password: 'short' });
+    expect(short.status).toBe(400);
+    const r = await request(app).post(`/api/v1/platform/businesses/${bizId}/reset-owner`).set(asP()).send({ password: 'admin-picked-pass-1' });
+    expect(r.status).toBe(200);
+    expect(r.body.temporary_password).toBeUndefined();
+    const login = await request(app).post('/api/v1/auth/login').set('X-Business', SLUG).send({ username: 'owner', password: 'admin-picked-pass-1' });
+    expect(login.status).toBe(200);
+  });
+
+  it('deletes a salon and only that salon', async () => {
+    const demoBefore = await runAsSystem(() => one<{ n: number }>(`SELECT count(*)::int AS n FROM gift_card_transactions t JOIN businesses b ON b.id = t.business_id WHERE b.slug = $1`, [DEMO_SLUG]));
+
+    // give the doomed salon some real data first
+    const login = await request(app).post('/api/v1/auth/login').set('X-Business', SLUG).send({ username: 'owner', password: 'admin-picked-pass-1' });
+    const h = { Authorization: `Bearer ${login.body.token}` };
+    const card = await request(app).post('/api/v1/cards').set(h).set('Idempotency-Key', `del-card-${SLUG}`).send({ card_number: 'DEL0001', face_value_cents: 2500 });
+    expect(card.status).toBe(201);
+
+    const wrong = await request(app).post(`/api/v1/platform/businesses/${bizId}/delete`).set(asP()).send({ confirm: 'nope' });
+    expect(wrong.status).toBe(400);
+    expect(wrong.body.code).toBe('CONFIRM_MISMATCH');
+
+    const r = await request(app).post(`/api/v1/platform/businesses/${bizId}/delete`).set(asP()).send({ confirm: SLUG.toUpperCase() });
+    expect(r.status).toBe(200);
+    expect(r.body.rows.gift_cards).toBe(1);
+    expect(r.body.rows.gift_card_transactions).toBeGreaterThanOrEqual(1);
+
+    // gone everywhere
+    const left = await runAsSystem(() =>
+      one<{ n: number }>(`SELECT (SELECT count(*) FROM users WHERE business_id = $1) + (SELECT count(*) FROM gift_cards WHERE business_id = $1)
+                          + (SELECT count(*) FROM audit_log WHERE business_id = $1) + (SELECT count(*) FROM businesses WHERE id = $1) AS n`, [bizId]),
+    );
+    expect(Number(left!.n)).toBe(0);
+    expect((await request(app).get('/api/v1/cards').set(h)).status).toBe(401);
+    expect((await request(app).post('/api/v1/auth/login').set('X-Business', SLUG).send({ username: 'owner', password: 'admin-picked-pass-1' })).status).toBe(404);
+
+    // other salons untouched; ledger still append-only for everyone else
+    const demoAfter = await runAsSystem(() => one<{ n: number }>(`SELECT count(*)::int AS n FROM gift_card_transactions t JOIN businesses b ON b.id = t.business_id WHERE b.slug = $1`, [DEMO_SLUG]));
+    expect(demoAfter!.n).toBe(demoBefore!.n);
+    await expect(query('DELETE FROM gift_card_transactions WHERE id = (SELECT min(id) FROM gift_card_transactions)')).rejects.toThrow(/append-only/);
   });
 
   it('unknown salon id → 404', async () => {

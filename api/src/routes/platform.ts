@@ -4,6 +4,8 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+import { rmSync } from 'node:fs';
+import path from 'node:path';
 import { config } from '../config.js';
 import { clientIp, invalidateUser, sha256 } from '../auth.js';
 import { one, query, runAsBusiness, runAsSystem } from '../db.js';
@@ -92,11 +94,16 @@ router.post('/platform/businesses/:id/status', async (req, res) => {
   res.json(b);
 });
 
-/** Owner locked out (no email in v1): set a one-off password the admin passes on by phone. */
+/**
+ * Owner locked out (no email in v1). The admin either types the new password
+ * or lets the server make one, then passes it on by phone.
+ */
 router.post('/platform/businesses/:id/reset-owner', async (req, res) => {
   const id = bizId(req);
+  const b = z.object({ password: z.string().min(10, 'Password must be at least 10 characters').max(200).optional() }).parse(req.body ?? {});
   await mustExist(id);
-  const password = randomBytes(9).toString('base64url'); // 12 chars
+  const chosen = b.password !== undefined;
+  const password = b.password ?? randomBytes(9).toString('base64url'); // 12 chars
   const hash = await bcrypt.hash(password, 10);
   const owner = await runAsBusiness(id, async () => {
     const u = await one<{ id: number; username: string; name: string }>(
@@ -110,7 +117,12 @@ router.post('/platform/businesses/:id/reset-owner', async (req, res) => {
     await audit(platformActor(req), 'user.password_reset_by_platform', { entityType: 'user', entityId: u.id });
     return u;
   });
-  res.json({ username: owner.username, name: owner.name, temporary_password: password, note: 'Give this to the owner. Ask them to change it after logging in.' });
+  res.json({
+    username: owner.username,
+    name: owner.name,
+    ...(chosen ? {} : { temporary_password: password }),
+    note: chosen ? 'Password changed.' : 'Give this to the owner. Ask them to change it after logging in.',
+  });
 });
 
 /** Owner lost every paired device: issue a fresh POS terminal key. */
@@ -128,4 +140,20 @@ router.post('/platform/businesses/:id/terminal-key', async (req, res) => {
     return row!;
   });
   res.status(201).json({ ...t, api_key: key, note: 'Shown once. The owner enters it under Pair device.' });
+});
+
+/**
+ * Delete a salon and ALL its data (cards, ledger, customers, staff, devices,
+ * settings, backups). Cannot be undone. The admin must type the Salon ID.
+ */
+router.post('/platform/businesses/:id/delete', async (req, res) => {
+  const id = bizId(req);
+  const { confirm } = z.object({ confirm: z.string().trim().toLowerCase() }).parse(req.body ?? {});
+  const b = await mustExist(id);
+  if (confirm !== b.slug) throw new ApiError(400, 'CONFIRM_MISMATCH', `Type the Salon ID "${b.slug}" exactly to confirm`, 'confirm');
+  const r = await runAsSystem(() => one<{ deleted: Record<string, number> }>('SELECT fn_purge_business($1) AS deleted', [id]));
+  invalidateBusiness();
+  rmSync(path.join(config.backupDir, `salon-${id}`), { recursive: true, force: true });
+  console.warn(`[platform] salon ${b.slug} (#${id}) deleted from ${clientIp(req)}`);
+  res.json({ deleted: true, slug: b.slug, name: b.name, rows: r?.deleted ?? {} });
 });

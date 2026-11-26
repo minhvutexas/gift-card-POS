@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { LogOut, RefreshCw } from 'lucide-react';
+import { Eye, EyeOff, LogOut, RefreshCw, Trash2 } from 'lucide-react';
 import { API_BASE, ApiError } from '../../lib/api';
 import { formatCents } from '../../lib/money';
 import { Button, EmptyState, Field, Modal, SkeletonRows, fmtDate, fmtDateTime, inputCls } from '../../components/ui';
@@ -56,7 +56,7 @@ interface Salon {
   last_activity_at: string | null;
 }
 
-type Pending = { kind: 'suspend' | 'reactivate' | 'reset' | 'key'; salon: Salon };
+type Pending = { kind: 'suspend' | 'reactivate' | 'reset' | 'key' | 'delete'; salon: Salon };
 type Secret = { title: string; lines: [string, string][]; note: string };
 
 export function PlatformPage() {
@@ -103,6 +103,20 @@ function Salons({ onLogout }: { onLogout: () => void }) {
   const [pending, setPending] = useState<Pending | null>(null);
   const [secret, setSecret] = useState<Secret | null>(null);
   const [actionErr, setActionErr] = useState<string | null>(null);
+  // reset-password + delete form state (fresh every time a dialog opens)
+  const [pwMode, setPwMode] = useState<'auto' | 'custom'>('auto');
+  const [customPw, setCustomPw] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const open = (kind: Pending['kind'], salon: Salon) => {
+    setPwMode('auto');
+    setCustomPw('');
+    setShowPw(false);
+    setConfirmText('');
+    setActionErr(null);
+    setPending({ kind, salon });
+  };
+  const close = () => (setPending(null), setActionErr(null));
 
   const list = useQuery({
     queryKey: ['platform-salons'],
@@ -122,8 +136,17 @@ function Salons({ onLogout }: { onLogout: () => void }) {
         return null;
       }
       if (p.kind === 'reset') {
-        const r = await papi<{ username: string; temporary_password: string }>(`${base}/reset-owner`, {});
-        return { title: `New owner password · ${p.salon.name}`, lines: [['Salon ID', p.salon.slug], ['Username', r.username], ['Temporary password', r.temporary_password]], note: 'Shown once. Read it to the owner and ask them to change it.' } as Secret;
+        const custom = pwMode === 'custom';
+        const r = await papi<{ username: string; temporary_password?: string }>(`${base}/reset-owner`, custom ? { password: customPw } : {});
+        return {
+          title: `New owner password · ${p.salon.name}`,
+          lines: [['Salon ID', p.salon.slug], ['Username', r.username], ['Password', custom ? customPw : (r.temporary_password ?? '')]],
+          note: custom ? 'Password changed. Give these to the owner.' : 'Shown once. Read it to the owner and ask them to change it.',
+        } as Secret;
+      }
+      if (p.kind === 'delete') {
+        await papi(`${base}/delete`, { confirm: confirmText });
+        return { title: 'Salon deleted', lines: [['Salon', p.salon.name], ['Salon ID', p.salon.slug]], note: 'Its cards, customers, staff, devices and history are gone. The Salon ID can be used again.' } as Secret;
       }
       const r = await papi<{ code: string; api_key: string }>(`${base}/terminal-key`, {});
       return { title: `Recovery terminal key · ${p.salon.name}`, lines: [['Terminal', r.code], ['Key', r.api_key]], note: 'Shown once. The owner enters it under Pair device on the sign-in screen.' } as Secret;
@@ -143,7 +166,8 @@ function Salons({ onLogout }: { onLogout: () => void }) {
   const confirmCopy: Record<Pending['kind'], { title: string; body: string; cta: string; danger?: boolean }> = {
     suspend: { title: 'Suspend', body: 'Staff and customers of this salon can’t sign in or check balances until you reactivate it. No data is deleted.', cta: 'Suspend', danger: true },
     reactivate: { title: 'Reactivate', body: 'Staff can sign in again right away.', cta: 'Reactivate' },
-    reset: { title: 'Reset owner password for', body: 'The owner’s current password stops working. You get a one-time password to give them.', cta: 'Reset password', danger: true },
+    reset: { title: 'Reset owner password for', body: 'The owner’s current password stops working right away.', cta: 'Reset password', danger: true },
+    delete: { title: 'Delete', body: '', cta: 'Delete salon forever', danger: true },
     key: { title: 'New terminal key for', body: 'Creates a new paired device called “Recovery device”. The salon can switch it off in Settings › Terminal.', cta: 'Create key' },
   };
 
@@ -220,21 +244,24 @@ function Salons({ onLogout }: { onLogout: () => void }) {
                     <td className="px-4 py-3">{fmtDate(s.created_at)}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => setPending({ kind: 'reset', salon: s })}>
+                        <Button variant="ghost" size="sm" onClick={() => open('reset', s)}>
                           Reset owner
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setPending({ kind: 'key', salon: s })}>
+                        <Button variant="ghost" size="sm" onClick={() => open('key', s)}>
                           New key
                         </Button>
                         {s.status === 'ACTIVE' ? (
-                          <Button variant="ghost" size="sm" className="text-red-700 dark:text-red-400" onClick={() => setPending({ kind: 'suspend', salon: s })}>
+                          <Button variant="ghost" size="sm" className="text-red-700 dark:text-red-400" onClick={() => open('suspend', s)}>
                             Suspend
                           </Button>
                         ) : (
-                          <Button variant="secondary" size="sm" onClick={() => setPending({ kind: 'reactivate', salon: s })}>
+                          <Button variant="secondary" size="sm" onClick={() => open('reactivate', s)}>
                             Reactivate
                           </Button>
                         )}
+                        <Button variant="ghost" size="sm" className="text-red-700 dark:text-red-400" aria-label={`Delete ${s.name}`} title="Delete salon" onClick={() => open('delete', s)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -247,22 +274,69 @@ function Salons({ onLogout }: { onLogout: () => void }) {
 
       <Modal
         open={!!pending}
-        onClose={() => (setPending(null), setActionErr(null))}
+        onClose={close}
         title={pending ? `${confirmCopy[pending.kind].title} ${pending.salon.name}?` : ''}
         footer={
           pending && (
             <>
-              <Button variant="ghost" onClick={() => (setPending(null), setActionErr(null))}>
+              <Button variant="ghost" onClick={close}>
                 Cancel
               </Button>
-              <Button variant={confirmCopy[pending.kind].danger ? 'danger' : 'primary'} loading={act.isPending} onClick={() => act.mutate(pending)}>
+              <Button
+                variant={confirmCopy[pending.kind].danger ? 'danger' : 'primary'}
+                loading={act.isPending}
+                disabled={(pending.kind === 'reset' && pwMode === 'custom' && customPw.length < 10) || (pending.kind === 'delete' && confirmText.trim().toLowerCase() !== pending.salon.slug)}
+                onClick={() => act.mutate(pending)}
+              >
                 {confirmCopy[pending.kind].cta}
               </Button>
             </>
           )
         }
       >
-        {pending && <p className="text-slate-700 dark:text-slate-200">{confirmCopy[pending.kind].body}</p>}
+        {pending && confirmCopy[pending.kind].body && <p className="text-slate-700 dark:text-slate-200">{confirmCopy[pending.kind].body}</p>}
+        {pending?.kind === 'reset' && (
+          <fieldset className="mt-4 space-y-3">
+            <legend className="sr-only">New password</legend>
+            <label className="flex items-center gap-2">
+              <input type="radio" name="pwmode" checked={pwMode === 'auto'} onChange={() => setPwMode('auto')} />
+              Make a password for me
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" name="pwmode" checked={pwMode === 'custom'} onChange={() => setPwMode('custom')} />
+              I’ll type the new password
+            </label>
+            {pwMode === 'custom' && (
+              <Field label="New password" htmlFor="npw" hint="At least 10 characters." error={customPw && customPw.length < 10 ? 'Too short — use at least 10 characters.' : null}>
+                <div className="flex gap-2">
+                  <input
+                    id="npw"
+                    type={showPw ? 'text' : 'password'}
+                    className={inputCls}
+                    value={customPw}
+                    onChange={(e) => setCustomPw(e.target.value)}
+                    autoComplete="new-password"
+                    autoFocus
+                  />
+                  <Button variant="secondary" aria-label={showPw ? 'Hide password' : 'Show password'} title={showPw ? 'Hide password' : 'Show password'} onClick={() => setShowPw(!showPw)}>
+                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </Field>
+            )}
+          </fieldset>
+        )}
+        {pending?.kind === 'delete' && (
+          <div className="space-y-3">
+            <p className="rounded-xl bg-red-50 p-3 text-red-900 dark:bg-red-950/40 dark:text-red-200">
+              This permanently deletes <strong>{pending.salon.name}</strong>: {pending.salon.cards} cards ({formatCents(Math.round(Number(pending.salon.outstanding) * 100))} still on them), all customers, staff, devices, history and backups. <strong>It can’t be undone.</strong>
+            </p>
+            <p className="text-sm text-slate-700 dark:text-slate-200">Just want to stop them for now? Use Suspend instead.</p>
+            <Field label={<>Type <span className="font-mono">{pending.salon.slug}</span> to confirm</>} htmlFor="delconf">
+              <input id="delconf" className={`${inputCls} font-mono`} value={confirmText} onChange={(e) => setConfirmText(e.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} autoFocus />
+            </Field>
+          </div>
+        )}
         {actionErr && (
           <p role="alert" className="mt-3 text-sm text-red-700 dark:text-red-400">
             {actionErr}
