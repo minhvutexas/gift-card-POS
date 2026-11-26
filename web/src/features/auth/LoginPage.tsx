@@ -20,7 +20,11 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [terminalKey, setTerminalKey] = useState(store.terminalKey ?? '');
   const business = useQuery({ queryKey: ['business'], queryFn: () => api<{ slug: string; name: string }>('/business'), retry: false });
-  const salonErr = [users.error, business.error].find((e) => e instanceof ApiError && (e.code === 'BUSINESS_REQUIRED' || e.code === 'BUSINESS_NOT_FOUND')) as ApiError | undefined;
+  // Any problem with the salon itself (none chosen, unknown, badly formatted) → ask for it again.
+  const salonErr = [users.error, business.error].find(
+    (e) => e instanceof ApiError && (e.code === 'BUSINESS_REQUIRED' || e.code === 'BUSINESS_NOT_FOUND' || (e.code === 'VALIDATION' && e.field === 'business')),
+  ) as ApiError | undefined;
+  const [salonFormErr, setSalonFormErr] = useState<string | null>(null);
   const [changingSalon, setChangingSalon] = useState(false);
   const needsSalon = !!salonErr || changingSalon;
   const needsPairing = !needsSalon && users.error instanceof ApiError && users.error.code.startsWith('TERMINAL');
@@ -63,7 +67,13 @@ export function LoginPage() {
             className="space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
-              store.business = salonId.trim() || null;
+              // Forgive the usual slips: capitals, spaces, stray dashes.
+              const id = salonId.trim().toLowerCase().replace(/\s+/g, '-').replace(/-+/g, '-');
+              if (!/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(id)) {
+                setSalonFormErr('A Salon ID uses only lowercase letters, numbers and dashes, like lotus-nails. Ask your owner for it.');
+                return;
+              }
+              store.business = id;
               window.location.reload();
             }}
           >
@@ -73,14 +83,23 @@ export function LoginPage() {
             <Field
               label="Salon ID"
               htmlFor="salon"
-              error={salonErr?.code === 'BUSINESS_NOT_FOUND' && !changingSalon ? 'No salon has that Salon ID. Check the spelling with your manager.' : null}
+              error={
+                salonFormErr ??
+                (changingSalon
+                  ? null
+                  : salonErr?.code === 'BUSINESS_NOT_FOUND'
+                    ? 'No salon has that Salon ID. Check the spelling with your manager.'
+                    : salonErr?.code === 'VALIDATION'
+                      ? 'The saved Salon ID isn’t valid. Enter it again, like lotus-nails.'
+                      : null)
+              }
               hint="Your owner chose it at sign-up, e.g. lotus-nails."
             >
               <input
                 id="salon"
                 className={`${inputCls} font-mono lowercase`}
                 value={salonId}
-                onChange={(e) => setSalonId(e.target.value)}
+                onChange={(e) => (setSalonId(e.target.value), setSalonFormErr(null))}
                 autoComplete="organization"
                 autoCapitalize="none"
                 spellCheck={false}
