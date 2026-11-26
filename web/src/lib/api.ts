@@ -89,6 +89,18 @@ export const onAuthError = (fn: AuthListener) => {
   };
 };
 
+/** Lets the login screen say "this device's key was removed". */
+const keyDroppedListeners = new Set<() => void>();
+export const onTerminalKeyDropped = (fn: () => void) => {
+  keyDroppedListeners.add(fn);
+  return () => {
+    keyDroppedListeners.delete(fn);
+  };
+};
+function notifyKeyDropped() {
+  keyDroppedListeners.forEach((l) => l());
+}
+
 export interface RequestOpts {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
@@ -129,6 +141,7 @@ export async function api<T = any>(path: string, opts: RequestOpts = {}): Promis
   const key = method === 'GET' ? undefined : (opts.idempotencyKey ?? uuid());
   let approvalToken = opts.approvalToken;
 
+  let droppedKey = false;
   for (let attempt = 0; attempt < 3; attempt++) {
     let res: Response;
     try {
@@ -147,6 +160,16 @@ export async function api<T = any>(path: string, opts: RequestOpts = {}): Promis
       return (res.status === 204 ? null : await res.json()) as T;
     }
     const err = await toError(res);
+    // A saved terminal key the server no longer knows (deleted, disabled, or
+    // mistyped when pairing) is useless and blocks everything — even owner
+    // sign-in. Forget it and try once more without it.
+    if (err.code === 'TERMINAL_INVALID' && store.terminalKey && !droppedKey) {
+      store.terminalKey = null;
+      droppedKey = true;
+      notifyKeyDropped();
+      attempt--;
+      continue;
+    }
     if (err.code === 'APPROVAL_REQUIRED' && approvalHandler) {
       const tok = await approvalHandler({ action: err.details?.action ?? 'large_amount', dual_control: !!err.details?.dual_control, message: err.message });
       if (!tok) throw new ApiError(403, 'APPROVAL_CANCELLED', 'Manager approval was cancelled');

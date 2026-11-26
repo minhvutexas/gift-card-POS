@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { KeyRound, MonitorSmartphone } from 'lucide-react';
-import { api, ApiError, store } from '../../lib/api';
+import { api, ApiError, onTerminalKeyDropped, store } from '../../lib/api';
 import { useSession } from '../../lib/session';
 import { PinPad } from '../../components/Keypad';
 import { Button, Field, inputCls } from '../../components/ui';
@@ -15,7 +15,17 @@ import { Button, Field, inputCls } from '../../components/ui';
  */
 export function LoginPage() {
   const { loginPin, loginPassword, authError } = useSession();
-  const paired = !!store.terminalKey;
+  const [paired, setPaired] = useState(!!store.terminalKey);
+  const [keyRemoved, setKeyRemoved] = useState(false);
+  useEffect(
+    () =>
+      onTerminalKeyDropped(() => {
+        setPaired(false);
+        setKeyRemoved(true);
+        setMode('password');
+      }),
+    [],
+  );
   const [mode, setMode] = useState<'pin' | 'password' | 'pair'>(
     authError === 'TERMINAL_INVALID' ? 'pair' : paired ? 'pin' : 'password',
   );
@@ -70,6 +80,12 @@ export function LoginPage() {
           {business.data && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">CID {business.data.cid}</p>}
           {authError === 'SESSION_EXPIRED' && <p className="mt-1 text-sm text-amber-700">Your session ended — please sign in again.</p>}
         </div>
+
+        {keyRemoved && show === 'password' && (
+          <p role="status" className="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            This device had an old front-desk key that no longer works, so it was removed. Owners can sign in below. To use this device at the front desk, set it up again with a new key.
+          </p>
+        )}
 
         {show === 'password' && (
           <form
