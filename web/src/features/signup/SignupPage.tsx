@@ -18,6 +18,7 @@ interface Form {
   slug: string;
   owner_name: string;
   email: string;
+  username: string;
   password: string;
   pin: string;
 }
@@ -30,6 +31,7 @@ function validate(f: Form): Errors {
   if (!/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(f.slug)) e.slug = 'Use 3–40 lowercase letters, numbers or dashes.';
   if (!f.owner_name.trim()) e.owner_name = 'Enter your name.';
   if (!/^\S+@\S+\.\S+$/.test(f.email.trim())) e.email = 'Enter an email like you@salon.com.';
+  if (!/^[A-Za-z0-9._-]{2,40}$/.test(f.username.trim())) e.username = 'Use 2–40 letters, numbers, dots, dashes or underscores (no spaces).';
   if (f.password.length < 10) e.password = 'Use at least 10 characters.';
   if (!/^\d{4,8}$/.test(f.pin)) e.pin = 'Use 4–8 digits.';
   return e;
@@ -39,12 +41,14 @@ interface Created {
   business: { slug: string; name: string };
   terminal_key: string;
   token: string;
+  username?: string;
 }
 
 /** Public: a new salon creates its account, owner login and first paired device. */
 export function SignupPage() {
-  const [f, setF] = useState<Form>({ salon_name: '', slug: '', owner_name: '', email: '', password: '', pin: '' });
+  const [f, setF] = useState<Form>({ salon_name: '', slug: '', owner_name: '', email: '', username: '', password: '', pin: '' });
   const [slugEdited, setSlugEdited] = useState(false);
+  const [userEdited, setUserEdited] = useState(false);
   const [touched, setTouched] = useState<Partial<Record<keyof Form, boolean>>>({});
   const [serverErr, setServerErr] = useState<Errors>({});
   const [formErr, setFormErr] = useState<string | null>(null);
@@ -55,7 +59,12 @@ export function SignupPage() {
   const errors = validate(f);
   const shown = (k: keyof Form) => serverErr[k] ?? (touched[k] ? errors[k] : undefined);
   const set = (k: keyof Form, v: string) => {
-    setF((p) => ({ ...p, [k]: v, ...(k === 'salon_name' && !slugEdited ? { slug: toSlug(v) } : {}) }));
+    setF((p) => ({
+      ...p,
+      [k]: v,
+      ...(k === 'salon_name' && !slugEdited ? { slug: toSlug(v) } : {}),
+      ...(k === 'owner_name' && !userEdited ? { username: toSlug(v.trim().split(/\s+/)[0] ?? '').replace(/-/g, '').slice(0, 40) } : {}),
+    }));
     setServerErr((p) => ({ ...p, [k]: undefined, ...(k === 'salon_name' && !slugEdited ? { slug: undefined } : {}) }));
   };
   const blur = (k: keyof Form) => () => setTouched((p) => ({ ...p, [k]: true }));
@@ -83,17 +92,17 @@ export function SignupPage() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    setTouched({ salon_name: true, slug: true, owner_name: true, email: true, password: true, pin: true });
+    setTouched({ salon_name: true, slug: true, owner_name: true, email: true, username: true, password: true, pin: true });
     setFormErr(null);
     if (Object.keys(errors).length || slugTaken) return;
     setBusy(true);
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const r = await api<Created>('/signup', { body: { ...f, timezone: tz } });
+      const r = await api<Created>('/signup', { body: { ...f, username: f.username.trim(), timezone: tz } });
       store.terminalKey = r.terminal_key;
       store.token = r.token;
       store.business = r.business.slug;
-      setDone(r);
+      setDone({ ...r, username: f.username.trim() });
     } catch (x) {
       if (x instanceof ApiError && x.field && x.field in f) setServerErr({ [x.field]: x.message });
       else setFormErr(x instanceof ApiError ? x.message : 'We couldn’t create your account. Check your connection and try again.');
@@ -143,6 +152,21 @@ export function SignupPage() {
                   <input id="em" type="email" className={inputCls} value={f.email} onChange={(e) => set('email', e.target.value)} onBlur={blur('email')} autoComplete="email" />
                 </Field>
               </div>
+              <Field label="Username" htmlFor="un" error={shown('username')} hint="You sign in with this, your password and the Salon ID.">
+                <input
+                  id="un"
+                  className={`${inputCls} font-mono`}
+                  value={f.username}
+                  onChange={(e) => {
+                    setUserEdited(true);
+                    set('username', e.target.value.replace(/\s/g, ''));
+                  }}
+                  onBlur={blur('username')}
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                />
+              </Field>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Password" htmlFor="pw" error={shown('password')} hint="For signing in as owner. 10+ characters.">
                   <input id="pw" type="password" className={inputCls} value={f.password} onChange={(e) => set('password', e.target.value)} onBlur={blur('password')} autoComplete="new-password" />
@@ -160,9 +184,6 @@ export function SignupPage() {
                   />
                 </Field>
               </div>
-              <p className="text-sm text-slate-600 dark:text-slate-300">
-                Your username is <span className="font-mono">owner</span>.
-              </p>
               {formErr && (
                 <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950/40 dark:text-red-200">
                   {formErr}
@@ -218,9 +239,10 @@ function Welcome({ created }: { created: Created }) {
   return (
     <div>
       <h1 className="text-2xl font-bold">{created.business.name} is ready</h1>
-      <p className="mt-1 text-slate-600 dark:text-slate-300">This device is signed in and paired. Save these two things somewhere safe.</p>
+      <p className="mt-1 text-slate-600 dark:text-slate-300">This device is signed in and paired. Save these somewhere safe.</p>
       <div className="mt-6 space-y-4">
         <CopyRow label="Salon ID" value={created.business.slug} />
+        {created.username && <CopyRow label="Username" value={created.username} />}
         <CopyRow label="Terminal key (shown only once)" value={created.terminal_key} />
       </div>
       <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">

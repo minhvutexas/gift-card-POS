@@ -66,6 +66,17 @@ describe('signup', () => {
     expect(r.body.code).toBe('SLUG_TAKEN');
   });
 
+  it('lets the owner pick their own username', async () => {
+    const slug = `own-${Date.now().toString(36)}`;
+    const r = await signup({ slug, email: 'mai@example.com', username: 'Mai.Nguyen' });
+    expect(r.status).toBe(201);
+    const ok = await request(app).post('/api/v1/auth/login').set('X-Business', slug).send({ username: 'mai.nguyen', password: 'correct-horse-1' });
+    expect(ok.status).toBe(200);
+    expect(ok.body.user.username).toBe('Mai.Nguyen');
+    const bad = await signup({ slug: `${slug}-x`, username: 'has space' });
+    expect(bad.status).toBe(400);
+  });
+
   it('owner can log in with Salon ID + password or PIN', async () => {
     const pw = await request(app).post('/api/v1/auth/login').set('X-Business', SLUG).send({ username: 'owner', password: 'correct-horse-1' });
     expect(pw.status).toBe(200);
