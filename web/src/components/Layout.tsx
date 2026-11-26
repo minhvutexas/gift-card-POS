@@ -95,7 +95,10 @@ export function Layout() {
         <header className="sticky top-0 z-20 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 bg-white/90 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
           <div className="flex items-center gap-3">
             <div>
-              <p className="text-sm font-semibold leading-tight">{me?.settings.general.business_name}</p>
+              <p className="text-sm font-semibold leading-tight">
+                {me?.settings.general.business_name}
+                {me?.business?.cid && <span className="ml-2 font-mono text-xs font-normal text-slate-500 dark:text-slate-400">CID {me.business.cid}</span>}
+              </p>
               <p className="text-xs leading-tight text-slate-500">
                 {now.toLocaleDateString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric' })} ·{' '}
                 <time className="tabular-nums" dateTime={now.toISOString()}>

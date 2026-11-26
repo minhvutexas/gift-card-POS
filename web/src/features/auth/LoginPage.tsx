@@ -1,34 +1,40 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { KeyRound, MonitorSmartphone, Store } from 'lucide-react';
+import { KeyRound, MonitorSmartphone } from 'lucide-react';
 import { api, ApiError, store } from '../../lib/api';
 import { useSession } from '../../lib/session';
 import { PinPad } from '../../components/Keypad';
 import { Button, Field, inputCls } from '../../components/ui';
 
-/** Shared-terminal login: tap your name → PIN. Password login for owners/remote. */
+/**
+ * Two ways in:
+ *  - Paired front-desk device (has a terminal key): staff tap their name → PIN.
+ *  - Any other device: the salon OWNER signs in with username + password.
+ *    No Salon ID needed — owner usernames are unique, so the username finds the salon.
+ */
 export function LoginPage() {
   const { loginPin, loginPassword, authError } = useSession();
-  const users = useQuery({ queryKey: ['login-users'], queryFn: () => api<{ data: { id: number; name: string; role: string }[] }>('/auth/users'), retry: false });
+  const paired = !!store.terminalKey;
+  const [mode, setMode] = useState<'pin' | 'password' | 'pair'>(
+    authError === 'TERMINAL_INVALID' ? 'pair' : paired ? 'pin' : 'password',
+  );
+  const users = useQuery({
+    queryKey: ['login-users'],
+    queryFn: () => api<{ data: { id: number; name: string; role: string }[] }>('/auth/users'),
+    retry: false,
+    enabled: paired,
+  });
+  const business = useQuery({ queryKey: ['business'], queryFn: () => api<{ cid: string; slug: string; name: string }>('/business'), retry: false, enabled: paired });
+  const keyBroken = paired && users.error instanceof ApiError && users.error.code.startsWith('TERMINAL');
+
   const [userId, setUserId] = useState<number | undefined>();
   const [pin, setPin] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [mode, setMode] = useState<'pin' | 'password' | 'pair'>(authError === 'TERMINAL_REQUIRED' || authError === 'TERMINAL_INVALID' ? 'pair' : 'pin');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [terminalKey, setTerminalKey] = useState(store.terminalKey ?? '');
-  const business = useQuery({ queryKey: ['business'], queryFn: () => api<{ slug: string; name: string }>('/business'), retry: false });
-  // Any problem with the salon itself (none chosen, unknown, badly formatted) → ask for it again.
-  const salonErr = [users.error, business.error].find(
-    (e) => e instanceof ApiError && (e.code === 'BUSINESS_REQUIRED' || e.code === 'BUSINESS_NOT_FOUND' || (e.code === 'VALIDATION' && e.field === 'business')),
-  ) as ApiError | undefined;
-  const [salonFormErr, setSalonFormErr] = useState<string | null>(null);
-  const [changingSalon, setChangingSalon] = useState(false);
-  const needsSalon = !!salonErr || changingSalon;
-  const needsPairing = !needsSalon && users.error instanceof ApiError && users.error.code.startsWith('TERMINAL');
-  const [salonId, setSalonId] = useState(store.business ?? '');
 
   const submitPin = async (p: string) => {
     setBusy(true);
@@ -43,6 +49,8 @@ export function LoginPage() {
     }
   };
 
+  const show = keyBroken && mode === 'pin' ? 'pair' : mode;
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 to-slate-100 p-4 dark:from-slate-950 dark:to-slate-900">
       <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl dark:bg-slate-900">
@@ -51,73 +59,54 @@ export function LoginPage() {
             🎁
           </div>
           <h1 className="mt-2 text-2xl font-bold">{business.data?.name ?? 'Gift Card POS'}</h1>
-          {business.data && !store.terminalKey && !needsSalon && (
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Salon ID <span className="font-mono">{business.data.slug}</span> ·{' '}
-              <button type="button" className="font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-300" onClick={() => setChangingSalon(true)}>
-                Change
-              </button>
-            </p>
-          )}
+          {business.data && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">CID {business.data.cid}</p>}
           {authError === 'SESSION_EXPIRED' && <p className="mt-1 text-sm text-amber-700">Your session ended — please sign in again.</p>}
         </div>
 
-        {needsSalon && (
+        {show === 'password' && (
           <form
             className="space-y-3"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              // Forgive the usual slips: capitals, spaces, stray dashes.
-              const id = salonId.trim().toLowerCase().replace(/\s+/g, '-').replace(/-+/g, '-');
-              if (!/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(id)) {
-                setSalonFormErr('A Salon ID uses only lowercase letters, numbers and dashes, like lotus-nails. Ask your owner for it.');
-                return;
+              setBusy(true);
+              setErr(null);
+              try {
+                await loginPassword(username.trim(), password);
+              } catch (x) {
+                setErr(x instanceof ApiError ? x.message : 'Login failed');
+              } finally {
+                setBusy(false);
               }
-              store.business = id;
-              window.location.reload();
             }}
           >
             <p className="flex items-center gap-2 font-semibold">
-              <Store className="h-5 w-5" aria-hidden /> Which salon?
+              <KeyRound className="h-5 w-5" aria-hidden /> Owner sign-in
             </p>
-            <Field
-              label="Salon ID"
-              htmlFor="salon"
-              error={
-                salonFormErr ??
-                (changingSalon
-                  ? null
-                  : salonErr?.code === 'BUSINESS_NOT_FOUND'
-                    ? 'No salon has that Salon ID. Check the spelling with your manager.'
-                    : salonErr?.code === 'VALIDATION'
-                      ? 'The saved Salon ID isn’t valid. Enter it again, like lotus-nails.'
-                      : null)
-              }
-              hint="Your owner chose it at sign-up, e.g. lotus-nails."
-            >
-              <input
-                id="salon"
-                className={`${inputCls} font-mono lowercase`}
-                value={salonId}
-                onChange={(e) => (setSalonId(e.target.value), setSalonFormErr(null))}
-                autoComplete="organization"
-                autoCapitalize="none"
-                spellCheck={false}
-                autoFocus
-              />
+            <Field label="Username" htmlFor="u">
+              <input id="u" className={inputCls} autoComplete="username" autoCapitalize="none" spellCheck={false} value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
             </Field>
-            <Button type="submit" className="w-full" disabled={!salonId.trim()}>
-              Continue
+            <Field label="Password" htmlFor="p" error={err}>
+              <input id="p" type="password" className={inputCls} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </Field>
+            <Button type="submit" className="w-full" loading={busy} disabled={!username.trim() || !password}>
+              Sign in
             </Button>
-            {changingSalon && (
-              <Button variant="ghost" className="w-full" onClick={() => setChangingSalon(false)}>
-                Back
+            {paired && !keyBroken ? (
+              <Button variant="ghost" className="w-full" onClick={() => (setMode('pin'), setErr(null))}>
+                Staff: use PIN instead
               </Button>
+            ) : (
+              <p className="pt-1 text-center text-sm text-slate-600 dark:text-slate-300">
+                Staff sign in with a PIN on the front-desk device.{' '}
+                <button type="button" className="font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-300" onClick={() => (setMode('pair'), setErr(null))}>
+                  Set up this device as a front desk
+                </button>
+              </p>
             )}
           </form>
         )}
 
-        {!needsSalon && mode !== 'password' && (mode === 'pair' || needsPairing) && (
+        {show === 'pair' && (
           <form
             className="space-y-3"
             onSubmit={(e) => {
@@ -127,31 +116,24 @@ export function LoginPage() {
             }}
           >
             <p className="flex items-center gap-2 font-semibold">
-              <MonitorSmartphone className="h-5 w-5" /> Pair this device
+              <MonitorSmartphone className="h-5 w-5" aria-hidden /> Set up a front-desk device
             </p>
-            <p className="text-sm text-slate-600 dark:text-slate-300">Enter the terminal key from Settings › Terminal (shown once when the terminal was created).</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              {keyBroken ? 'This device’s key no longer works. ' : ''}Enter a terminal key. The owner creates one in Settings › Terminal.
+            </p>
             <Field label="Terminal key" htmlFor="tk">
-              <input id="tk" className={`${inputCls} font-mono`} value={terminalKey} onChange={(e) => setTerminalKey(e.target.value)} autoComplete="off" />
+              <input id="tk" className={`${inputCls} font-mono`} value={terminalKey} onChange={(e) => setTerminalKey(e.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} />
             </Field>
             <Button type="submit" className="w-full" disabled={!terminalKey.trim()}>
               Save & continue
             </Button>
-            {needsPairing ? (
-              <>
-                <p className="pt-2 text-center text-sm text-slate-600 dark:text-slate-300">Owner or manager on your own phone or computer?</p>
-                <Button variant="secondary" className="w-full" onClick={() => setMode('password')}>
-                  <KeyRound className="h-4 w-4" /> Sign in with password
-                </Button>
-              </>
-            ) : (
-              <Button variant="ghost" className="w-full" onClick={() => setMode('pin')}>
-                Back
-              </Button>
-            )}
+            <Button variant="ghost" className="w-full" onClick={() => setMode('password')}>
+              Owner sign-in instead
+            </Button>
           </form>
         )}
 
-        {mode === 'pin' && !needsPairing && !needsSalon && (
+        {show === 'pin' && (
           <>
             {!!users.data?.data.length && (
               <div className="mb-4 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Who is signing in?">
@@ -172,49 +154,22 @@ export function LoginPage() {
                 ))}
               </div>
             )}
+            {users.data && !users.data.data.length && (
+              <p className="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                No staff PINs yet. The owner signs in with their password and adds staff in Settings › Security.
+              </p>
+            )}
             <p className="mb-3 text-center text-slate-600 dark:text-slate-300">{userId ? 'Enter your PIN' : 'Tap your name, or just enter your PIN'}</p>
             <PinPad value={pin} onChange={setPin} onSubmit={submitPin} error={err} disabled={busy} />
             <div className="mt-4 flex justify-between">
-              <Button variant="ghost" size="sm" onClick={() => setMode('password')}>
-                <KeyRound className="h-4 w-4" /> Password login
+              <Button variant="ghost" size="sm" onClick={() => (setMode('password'), setErr(null))}>
+                <KeyRound className="h-4 w-4" /> Owner sign-in
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setMode('pair')}>
-                Pair device
+                Change device key
               </Button>
             </div>
           </>
-        )}
-
-        {mode === 'password' && !needsSalon && (
-          <form
-            className="space-y-3"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setBusy(true);
-              setErr(null);
-              try {
-                await loginPassword(username, password);
-              } catch (x) {
-                setErr(x instanceof ApiError ? x.message : 'Login failed');
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <Field label="Username" htmlFor="u">
-              <input id="u" className={inputCls} autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
-            </Field>
-            <Field label="Password" htmlFor="p" error={err}>
-              <input id="p" type="password" className={inputCls} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-            </Field>
-            <Button type="submit" className="w-full" loading={busy}>
-              Sign in
-            </Button>
-            <Button variant="ghost" className="w-full" onClick={() => setMode(needsPairing ? 'pair' : 'pin')}>
-              {needsPairing ? 'Pair this device instead' : 'Use PIN instead'}
-            </Button>
-            {needsPairing && <p className="text-center text-xs text-slate-600 dark:text-slate-300">PIN sign-in works only on paired front-desk devices.</p>}
-          </form>
         )}
 
         <p className="mt-6 border-t border-slate-200 pt-4 text-center text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300">

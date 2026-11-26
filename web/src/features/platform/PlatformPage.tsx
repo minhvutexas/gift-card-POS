@@ -45,7 +45,9 @@ async function papi<T>(path: string, body?: unknown): Promise<T> {
 
 interface Salon {
   id: number;
+  cid: string;
   slug: string;
+  owner_username: string | null;
   name: string;
   status: 'ACTIVE' | 'SUSPENDED';
   owner_email: string | null;
@@ -104,12 +106,14 @@ function Salons({ onLogout }: { onLogout: () => void }) {
   const [secret, setSecret] = useState<Secret | null>(null);
   const [actionErr, setActionErr] = useState<string | null>(null);
   // reset-password + delete form state (fresh every time a dialog opens)
-  const [pwMode, setPwMode] = useState<'auto' | 'custom'>('auto');
+  const [pwMode, setPwMode] = useState<'keep' | 'auto' | 'custom'>('keep');
+  const [newUsername, setNewUsername] = useState('');
   const [customPw, setCustomPw] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const open = (kind: Pending['kind'], salon: Salon) => {
-    setPwMode('auto');
+    setPwMode('keep');
+    setNewUsername(salon.owner_username ?? '');
     setCustomPw('');
     setShowPw(false);
     setConfirmText('');
@@ -137,11 +141,18 @@ function Salons({ onLogout }: { onLogout: () => void }) {
       }
       if (p.kind === 'reset') {
         const custom = pwMode === 'custom';
-        const r = await papi<{ username: string; temporary_password?: string }>(`${base}/reset-owner`, custom ? { password: customPw } : {});
+        const renamed = newUsername.trim() && newUsername.trim() !== (p.salon.owner_username ?? '');
+        const r = await papi<{ username: string; temporary_password?: string }>(`${base}/reset-owner`, {
+          ...(renamed ? { username: newUsername.trim() } : {}),
+          ...(custom ? { password: customPw } : {}),
+          ...(pwMode === 'keep' ? { keep_password: true } : {}),
+        });
+        const lines: [string, string][] = [['CID', p.salon.cid], ['Username', r.username]];
+        if (pwMode !== 'keep') lines.push(['Password', custom ? customPw : (r.temporary_password ?? '')]);
         return {
-          title: `New owner password · ${p.salon.name}`,
-          lines: [['Salon ID', p.salon.slug], ['Username', r.username], ['Password', custom ? customPw : (r.temporary_password ?? '')]],
-          note: custom ? 'Password changed. Give these to the owner.' : 'Shown once. Read it to the owner and ask them to change it.',
+          title: `Owner login · ${p.salon.name}`,
+          lines,
+          note: pwMode === 'keep' ? 'Username saved. The password did not change.' : 'Shown once. Give these to the owner.',
         } as Secret;
       }
       if (p.kind === 'delete') {
@@ -160,13 +171,13 @@ function Salons({ onLogout }: { onLogout: () => void }) {
     onError: (e) => setActionErr(e instanceof ApiError ? e.message : 'That didn’t work. Try again.'),
   });
 
-  const rows = (list.data?.data ?? []).filter((s) => !filter || `${s.name} ${s.slug} ${s.owner_email ?? ''}`.toLowerCase().includes(filter.toLowerCase()));
+  const rows = (list.data?.data ?? []).filter((s) => !filter || `${s.cid} ${s.name} ${s.slug} ${s.owner_email ?? ''} ${s.owner_username ?? ''}`.toLowerCase().includes(filter.toLowerCase()));
   const active = list.data?.data.filter((s) => s.status === 'ACTIVE').length ?? 0;
 
   const confirmCopy: Record<Pending['kind'], { title: string; body: string; cta: string; danger?: boolean }> = {
     suspend: { title: 'Suspend', body: 'Staff and customers of this salon can’t sign in or check balances until you reactivate it. No data is deleted.', cta: 'Suspend', danger: true },
     reactivate: { title: 'Reactivate', body: 'Staff can sign in again right away.', cta: 'Reactivate' },
-    reset: { title: 'Reset owner password for', body: 'The owner’s current password stops working right away.', cta: 'Reset password', danger: true },
+    reset: { title: 'Owner login for', body: '', cta: 'Save', danger: false },
     delete: { title: 'Delete', body: '', cta: 'Delete salon forever', danger: true },
     key: { title: 'New terminal key for', body: 'Creates a new paired device called “Recovery device”. The salon can switch it off in Settings › Terminal.', cta: 'Create key' },
   };
@@ -193,7 +204,7 @@ function Salons({ onLogout }: { onLogout: () => void }) {
           <label htmlFor="pf" className="mb-1 block text-sm font-semibold">
             Find a salon
           </label>
-          <input id="pf" className={inputCls} value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Name, Salon ID or email" />
+          <input id="pf" className={inputCls} value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="CID, name, username or email" />
         </div>
 
         {list.isLoading ? (
@@ -211,10 +222,12 @@ function Salons({ onLogout }: { onLogout: () => void }) {
           </EmptyState>
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <table className="w-full min-w-[980px] text-left text-sm">
               <thead className="border-b border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-300">
                 <tr>
+                  <th className="px-4 py-3 font-semibold">CID</th>
                   <th className="px-4 py-3 font-semibold">Salon</th>
+                  <th className="px-4 py-3 font-semibold">Owner username</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 text-right font-semibold">Cards</th>
                   <th className="px-4 py-3 text-right font-semibold">Outstanding</th>
@@ -228,11 +241,13 @@ function Salons({ onLogout }: { onLogout: () => void }) {
               <tbody>
                 {rows.map((s) => (
                   <tr key={s.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
+                    <td className="px-4 py-3 font-mono font-semibold tabular-nums">{s.cid}</td>
                     <td className="px-4 py-3">
                       <div className="font-semibold">{s.name}</div>
                       <div className="font-mono text-xs text-slate-600 dark:text-slate-400">{s.slug}</div>
                       {s.owner_email && <div className="text-xs text-slate-600 dark:text-slate-400">{s.owner_email}</div>}
                     </td>
+                    <td className="px-4 py-3 font-mono">{s.owner_username ?? '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${s.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300' : 'bg-amber-50 text-amber-900 dark:bg-amber-950/50 dark:text-amber-300'}`}>
                         {s.status === 'ACTIVE' ? 'Active' : 'Suspended'}
@@ -245,7 +260,7 @@ function Salons({ onLogout }: { onLogout: () => void }) {
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="sm" onClick={() => open('reset', s)}>
-                          Reset owner
+                          Owner login
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => open('key', s)}>
                           New key
@@ -285,7 +300,10 @@ function Salons({ onLogout }: { onLogout: () => void }) {
               <Button
                 variant={confirmCopy[pending.kind].danger ? 'danger' : 'primary'}
                 loading={act.isPending}
-                disabled={(pending.kind === 'reset' && pwMode === 'custom' && customPw.length < 10) || (pending.kind === 'delete' && confirmText.trim().toLowerCase() !== pending.salon.slug)}
+                disabled={(pending.kind === 'reset' &&
+                    ((pwMode === 'custom' && customPw.length < 10) ||
+                      !/^[A-Za-z0-9._-]{2,40}$/.test(newUsername.trim()) ||
+                      (pwMode === 'keep' && newUsername.trim() === (pending.salon.owner_username ?? '')))) || (pending.kind === 'delete' && confirmText.trim().toLowerCase() !== pending.salon.slug)}
                 onClick={() => act.mutate(pending)}
               >
                 {confirmCopy[pending.kind].cta}
@@ -296,11 +314,22 @@ function Salons({ onLogout }: { onLogout: () => void }) {
       >
         {pending && confirmCopy[pending.kind].body && <p className="text-slate-700 dark:text-slate-200">{confirmCopy[pending.kind].body}</p>}
         {pending?.kind === 'reset' && (
-          <fieldset className="mt-4 space-y-3">
-            <legend className="sr-only">New password</legend>
+          <fieldset className="space-y-3">
+            <legend className="sr-only">Owner sign-in</legend>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              CID <span className="font-mono font-semibold">{pending.salon.cid}</span> · Passwords are stored scrambled, so nobody can read the current one — you can only set a new one.
+            </p>
+            <Field label="Username" htmlFor="ownu" hint="Unique across all salons. The owner signs in with it." error={newUsername && !/^[A-Za-z0-9._-]{2,40}$/.test(newUsername.trim()) ? 'Use 2–40 letters, numbers, dots, dashes or underscores.' : null}>
+              <input id="ownu" className={`${inputCls} font-mono`} value={newUsername} onChange={(e) => setNewUsername(e.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} />
+            </Field>
+            <p className="pt-1 text-sm font-semibold">Password</p>
+            <label className="flex items-center gap-2">
+              <input type="radio" name="pwmode" checked={pwMode === 'keep'} onChange={() => setPwMode('keep')} />
+              Keep the current password
+            </label>
             <label className="flex items-center gap-2">
               <input type="radio" name="pwmode" checked={pwMode === 'auto'} onChange={() => setPwMode('auto')} />
-              Make a password for me
+              Make a new password for me
             </label>
             <label className="flex items-center gap-2">
               <input type="radio" name="pwmode" checked={pwMode === 'custom'} onChange={() => setPwMode('custom')} />
@@ -316,8 +345,7 @@ function Salons({ onLogout }: { onLogout: () => void }) {
                     value={customPw}
                     onChange={(e) => setCustomPw(e.target.value)}
                     autoComplete="new-password"
-                    autoFocus
-                  />
+                        />
                   <Button variant="secondary" aria-label={showPw ? 'Hide password' : 'Show password'} title={showPw ? 'Hide password' : 'Show password'} onClick={() => setShowPw(!showPw)}>
                     {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>

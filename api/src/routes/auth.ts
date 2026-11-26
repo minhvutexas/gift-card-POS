@@ -2,11 +2,11 @@ import { Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import {
-  actorOf, authenticate, clientIp, issueApprovalToken, issueSession, revokeToken, verifyPassword, verifyPin, can,
+  actorOf, authenticate, clientIp, issueApprovalToken, issueSession, revokeToken, verifyPassword, verifyPasswordAnySalon, verifyPin, can,
   type ApprovalAction,
 } from '../auth.js';
 import { audit } from '../audit.js';
-import { query } from '../db.js';
+import { query, runAsBusiness } from '../db.js';
 import { ApiError } from '../errors.js';
 import { getAllSettings } from '../settings.js';
 import type { Actor } from '../types.js';
@@ -36,11 +36,25 @@ router.get('/auth/users', async (_req, res) => {
   res.json({ data: rows });
 });
 
-router.post('/auth/login', loginLimiter, async (req, res) => {
-  const b = z.object({ username: z.string().min(1).max(40), password: z.string().min(1).max(200) }).parse(req.body);
-  const u = await verifyPassword(b.username, b.password);
-  await audit(userActor(actorOf(req), u.id), 'auth.login', { entityType: 'user', entityId: u.id, payload: { method: 'password' } });
-  res.json(await sessionPayload(u, req.terminal?.id ?? null, 'password'));
+/**
+ * Owner password sign-in. Mounted BEFORE requireBusiness: with no salon in
+ * the request (no terminal key / Salon ID), the username finds the salon.
+ */
+export const loginRouter = Router();
+loginRouter.post('/auth/login', loginLimiter, async (req, res) => {
+  const b = z.object({ username: z.string().trim().min(1).max(40), password: z.string().min(1).max(200) }).parse(req.body);
+  if (req.business && !req.businessFromDefault) {
+    const u = await verifyPassword(b.username, b.password);
+    await audit(userActor(actorOf(req), u.id), 'auth.login', { entityType: 'user', entityId: u.id, payload: { method: 'password' } });
+    return res.json(await sessionPayload(u, req.terminal?.id ?? null, 'password'));
+  }
+  const { user, businessId } = await verifyPasswordAnySalon(b.username, b.password);
+  res.json(
+    await runAsBusiness(businessId, async () => {
+      await audit(userActor(actorOf(req), user.id), 'auth.login', { entityType: 'user', entityId: user.id, payload: { method: 'password' } });
+      return sessionPayload(user, null, 'password');
+    }),
+  );
 });
 
 router.post('/auth/pin-login', loginLimiter, async (req, res) => {
@@ -62,7 +76,7 @@ router.get('/auth/me', authenticate, async (req, res) => {
   res.json({
     user: { id: req.user!.id, name: req.user!.name, username: req.user!.username, role: req.user!.role, permissions: [...req.user!.perms] },
     terminal: req.terminal ?? null,
-    business: { slug: req.business!.slug, name: req.business!.name },
+    business: { cid: req.business!.cid, slug: req.business!.slug, name: req.business!.name },
     settings: { general: s.general, security: s.security, printer: s.printer, receipt: s.receipt, loyalty: s.loyalty },
   });
 });

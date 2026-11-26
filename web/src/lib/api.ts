@@ -106,9 +106,9 @@ function headers(opts: RequestOpts, key?: string): Record<string, string> {
   if (t) h.Authorization = `Bearer ${t}`;
   const tk = store.terminalKey;
   if (tk) h['X-Terminal-Key'] = tk;
-  // A terminal key already names its salon; otherwise say which salon we mean.
-  const biz = businessOverride ?? (tk ? null : store.business);
-  if (biz) h['X-Business'] = biz;
+  // Only pages about one named salon (the /k/:slug kiosk) name it. Otherwise the
+  // terminal key or the session already says which salon this is.
+  if (businessOverride) h['X-Business'] = businessOverride;
   if (key) h['Idempotency-Key'] = key;
   if (opts.approvalToken) h['X-Approval-Token'] = opts.approvalToken;
   return h;

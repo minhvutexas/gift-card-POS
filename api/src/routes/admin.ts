@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
-import { actorOf, can, invalidatePermissions, invalidateUser, requirePerm, sha256 } from '../auth.js';
+import { actorOf, assertOwnerUsernameFree, can, invalidatePermissions, invalidateUser, requirePerm, sha256 } from '../auth.js';
 import { audit } from '../audit.js';
 import { config } from '../config.js';
 import { one, query } from '../db.js';
@@ -177,6 +177,7 @@ const userBody = z.object({
 router.post('/users', requirePerm('users.manage'), async (req, res) => {
   const b = userBody.refine((u) => u.pin || u.password, 'Set a PIN or a password').parse(req.body);
   if (b.role === 'OWNER' && !can(req.user, '*')) throw forbidden('Only an owner can create owners');
+  if (b.role === 'OWNER') await assertOwnerUsernameFree(b.username);
   if (b.pin) await assertPinUnique(b.pin);
   const row = await one(
     `INSERT INTO users (name, username, role, pin_hash, password_hash) VALUES ($1,$2,$3::role_name,$4,$5) RETURNING id, name, username, role::text, active`,
@@ -199,6 +200,10 @@ router.patch('/users/:id', requirePerm('users.manage'), async (req, res) => {
   const b = userBody.partial().extend({ active: z.boolean().optional() }).parse(req.body);
   if (id === req.user!.id && (b.active === false || (b.role && b.role !== req.user!.role))) throw new ApiError(409, 'STATE_CONFLICT', 'You cannot disable or demote yourself');
   if (b.role === 'OWNER' && !can(req.user, '*')) throw forbidden('Only an owner can grant OWNER');
+  if (b.username || b.role === 'OWNER') {
+    const cur = await one<{ username: string; role: string }>('SELECT username, role::text FROM users WHERE id = $1', [id]);
+    if (cur && (b.role ?? cur.role) === 'OWNER') await assertOwnerUsernameFree(b.username ?? cur.username, id);
+  }
   if (b.pin) await assertPinUnique(b.pin, id);
   const row = await one(
     `UPDATE users SET name = COALESCE($2, name), username = COALESCE($3, username), role = COALESCE($4::role_name, role),

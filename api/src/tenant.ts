@@ -20,7 +20,7 @@ async function loadBusiness(where: 'id' | 'slug', value: number | string): Promi
   if (hit && Date.now() - hit.at < TTL_MS) return hit.b;
   const b =
     (await runAsSystem(() =>
-      one<BusinessInfo>(`SELECT id, slug, name, status FROM businesses WHERE ${where} = $1`, [value]),
+      one<BusinessInfo>(`SELECT id, lpad(cid::text, 5, '0') AS cid, slug, name, status FROM businesses WHERE ${where} = $1`, [value]),
     )) ?? null;
   cache.set(value as never, { at: Date.now(), b });
   return b;
@@ -90,7 +90,9 @@ export async function resolveTenant(req: Request, _res: Response, next: NextFunc
       bid = sb;
     }
 
-    const slug = slugFrom(req) ?? (bid === null ? config.defaultBusiness || undefined : undefined);
+    const named = slugFrom(req);
+    const slug = named ?? (bid === null ? config.defaultBusiness || undefined : undefined);
+    req.businessFromDefault = !named && bid === null && !!slug;
     let business: BusinessInfo | null = null;
     if (slug) {
       if (!SLUG_RE.test(slug)) return next(new ApiError(400, 'VALIDATION', 'Salon ID is not valid', 'business'));

@@ -14,10 +14,11 @@ afterAll(async () => {
 });
 
 const SLUG = `lotus-${Date.now().toString(36)}`;
+const OWNER = `linh-${Date.now().toString(36)}`;
 const signup = (over: Record<string, unknown> = {}) =>
   request(app)
     .post('/api/v1/signup')
-    .send({ salon_name: 'Lotus Nails', slug: SLUG, owner_name: 'Linh', email: 'linh@example.com', password: 'correct-horse-1', pin: '2468', ...over });
+    .send({ salon_name: 'Lotus Nails', slug: SLUG, owner_name: 'Linh', email: 'linh@example.com', username: OWNER, password: 'correct-horse-1', pin: '2468', ...over });
 
 let token = '';
 let terminalKey = '';
@@ -51,7 +52,10 @@ describe('signup', () => {
     const me = await request(app).get('/api/v1/auth/me').set(h);
     expect(me.body.user).toMatchObject({ name: 'Linh', role: 'OWNER' });
     const biz = await request(app).get('/api/v1/business').set(h);
-    expect(biz.body).toEqual({ slug: SLUG, name: 'Lotus Nails' });
+    expect(biz.body).toMatchObject({ slug: SLUG, name: 'Lotus Nails' });
+    expect(biz.body.cid).toMatch(/^\d{5}$/);
+    expect(r.body.business.cid).toBe(biz.body.cid);
+    expect(me.body.business.cid).toBe(biz.body.cid);
     const general = await request(app).get('/api/v1/settings/general').set(h);
     expect(JSON.stringify(general.body)).toContain('Lotus Nails');
     const cards = await request(app).get('/api/v1/cards?status=all').set(h);
@@ -61,7 +65,7 @@ describe('signup', () => {
   });
 
   it('refuses a taken Salon ID', async () => {
-    const r = await signup({ email: 'other@example.com' });
+    const r = await signup({ email: 'other@example.com', username: `${OWNER}-2` });
     expect(r.status).toBe(409);
     expect(r.body.code).toBe('SLUG_TAKEN');
   });
@@ -75,10 +79,41 @@ describe('signup', () => {
     expect(ok.body.user.username).toBe('Mai.Nguyen');
     const bad = await signup({ slug: `${slug}-x`, username: 'has space' });
     expect(bad.status).toBe(400);
+    const taken = await signup({ slug: `${slug}-y`, username: 'MAI.NGUYEN' }); // owner usernames are unique across salons
+    expect(taken.status).toBe(409);
+    expect(taken.body.code).toBe('USERNAME_TAKEN');
+    expect(bad.status).toBe(400);
+  });
+
+  it('owner signs in with just username + password (no Salon ID), PIN is optional at sign-up', async () => {
+    const slug = `nopin-${Date.now().toString(36)}`;
+    const user = `nopin.${Date.now().toString(36)}`;
+    const r = await signup({ slug, username: user, pin: undefined });
+    expect(r.status).toBe(201);
+    const login = await request(app).post('/api/v1/auth/login').send({ username: user.toUpperCase(), password: 'correct-horse-1' });
+    expect(login.status).toBe(200);
+    const biz = await request(app).get('/api/v1/business').set({ Authorization: `Bearer ${login.body.token}` });
+    expect(biz.body.slug).toBe(slug);
+    expect((await request(app).post('/api/v1/auth/login').send({ username: user, password: 'wrong-password' })).status).toBe(401);
+    expect((await request(app).post('/api/v1/auth/login').send({ username: 'nobody-here', password: 'whatever-123' })).status).toBe(401);
+  });
+
+  it('only owners may use a password', async () => {
+    // demo salon's manager has a password (manager123) but is not an owner
+    const r = await request(app).post('/api/v1/auth/login').set('X-Business', DEMO_SLUG).send({ username: 'manager', password: 'manager123' });
+    expect(r.status).toBe(403);
+    expect(r.body.code).toBe('PASSWORD_LOGIN_OWNER_ONLY');
+    const any = await request(app).post('/api/v1/auth/login').send({ username: 'manager', password: 'manager123' });
+    expect(any.status).toBe(403);
+  });
+
+  it('username availability check', async () => {
+    expect((await request(app).get(`/api/v1/signup/username-available?username=${OWNER}`)).body.available).toBe(false);
+    expect((await request(app).get(`/api/v1/signup/username-available?username=free-${Date.now()}`)).body.available).toBe(true);
   });
 
   it('owner can log in with Salon ID + password or PIN', async () => {
-    const pw = await request(app).post('/api/v1/auth/login').set('X-Business', SLUG).send({ username: 'owner', password: 'correct-horse-1' });
+    const pw = await request(app).post('/api/v1/auth/login').set('X-Business', SLUG).send({ username: OWNER, password: 'correct-horse-1' });
     expect(pw.status).toBe(200);
     const pin = await request(app).post('/api/v1/auth/pin-login').set('X-Terminal-Key', terminalKey).send({ pin: '2468' });
     expect(pin.status).toBe(200);
@@ -106,6 +141,10 @@ describe('platform admin', () => {
     const r = await request(app).get('/api/v1/platform/businesses').set(asP());
     expect(r.status).toBe(200);
     const mine = r.body.data.find((b: any) => b.slug === SLUG);
+    // every salon has a unique 5-digit CID
+    const cids = r.body.data.map((b: any) => b.cid);
+    expect(cids.every((c: string) => /^\d{5}$/.test(c))).toBe(true);
+    expect(new Set(cids).size).toBe(cids.length);
     expect(mine).toMatchObject({ name: 'Lotus Nails', status: 'ACTIVE', users: 1, cards: 0 });
     const demo = r.body.data.find((b: any) => b.slug === DEMO_SLUG);
     expect(demo.cards).toBeGreaterThan(0);
@@ -125,10 +164,10 @@ describe('platform admin', () => {
   it('resets a locked-out owner and issues a recovery terminal key', async () => {
     const r = await request(app).post(`/api/v1/platform/businesses/${bizId}/reset-owner`).set(asP()).send({});
     expect(r.status).toBe(200);
-    expect(r.body.username).toBe('owner');
-    const login = await request(app).post('/api/v1/auth/login').set('X-Business', SLUG).send({ username: 'owner', password: r.body.temporary_password });
+    expect(r.body.username).toBe(OWNER);
+    const login = await request(app).post('/api/v1/auth/login').set('X-Business', SLUG).send({ username: OWNER, password: r.body.temporary_password });
     expect(login.status).toBe(200);
-    expect((await request(app).post('/api/v1/auth/login').set('X-Business', SLUG).send({ username: 'owner', password: 'correct-horse-1' })).status).toBe(401);
+    expect((await request(app).post('/api/v1/auth/login').set('X-Business', SLUG).send({ username: OWNER, password: 'correct-horse-1' })).status).toBe(401);
 
     const k = await request(app).post(`/api/v1/platform/businesses/${bizId}/terminal-key`).set(asP()).send({});
     expect(k.status).toBe(201);
@@ -142,15 +181,35 @@ describe('platform admin', () => {
     const r = await request(app).post(`/api/v1/platform/businesses/${bizId}/reset-owner`).set(asP()).send({ password: 'admin-picked-pass-1' });
     expect(r.status).toBe(200);
     expect(r.body.temporary_password).toBeUndefined();
-    const login = await request(app).post('/api/v1/auth/login').set('X-Business', SLUG).send({ username: 'owner', password: 'admin-picked-pass-1' });
+    const login = await request(app).post('/api/v1/auth/login').set('X-Business', SLUG).send({ username: OWNER, password: 'admin-picked-pass-1' });
     expect(login.status).toBe(200);
+  });
+
+  it('admin can rename the owner login (keeping or changing the password) and sees it in the list', async () => {
+    const list = await request(app).get('/api/v1/platform/businesses').set(asP());
+    expect(list.body.data.find((b: any) => b.id === bizId).owner_username).toBe(OWNER);
+
+    const newName = `${OWNER}-renamed`;
+    const r = await request(app).post(`/api/v1/platform/businesses/${bizId}/reset-owner`).set(asP()).send({ username: newName, keep_password: true });
+    expect(r.status).toBe(200);
+    expect(r.body.username).toBe(newName);
+    expect(r.body.temporary_password).toBeUndefined();
+    expect((await request(app).post('/api/v1/auth/login').send({ username: newName, password: 'admin-picked-pass-1' })).status).toBe(200);
+    expect((await request(app).post('/api/v1/auth/login').send({ username: OWNER, password: 'admin-picked-pass-1' })).status).toBe(401);
+
+    const taken = await request(app).post(`/api/v1/platform/businesses/${bizId}/reset-owner`).set(asP()).send({ username: 'MAI.NGUYEN', keep_password: true });
+    expect(taken.status).toBe(409);
+    expect(taken.body.code).toBe('USERNAME_TAKEN');
+
+    // put it back for the tests below
+    expect((await request(app).post(`/api/v1/platform/businesses/${bizId}/reset-owner`).set(asP()).send({ username: OWNER, keep_password: true })).status).toBe(200);
   });
 
   it('deletes a salon and only that salon', async () => {
     const demoBefore = await runAsSystem(() => one<{ n: number }>(`SELECT count(*)::int AS n FROM gift_card_transactions t JOIN businesses b ON b.id = t.business_id WHERE b.slug = $1`, [DEMO_SLUG]));
 
     // give the doomed salon some real data first
-    const login = await request(app).post('/api/v1/auth/login').set('X-Business', SLUG).send({ username: 'owner', password: 'admin-picked-pass-1' });
+    const login = await request(app).post('/api/v1/auth/login').set('X-Business', SLUG).send({ username: OWNER, password: 'admin-picked-pass-1' });
     const h = { Authorization: `Bearer ${login.body.token}` };
     const card = await request(app).post('/api/v1/cards').set(h).set('Idempotency-Key', `del-card-${SLUG}`).send({ card_number: 'DEL0001', face_value_cents: 2500 });
     expect(card.status).toBe(201);
@@ -171,7 +230,7 @@ describe('platform admin', () => {
     );
     expect(Number(left!.n)).toBe(0);
     expect((await request(app).get('/api/v1/cards').set(h)).status).toBe(401);
-    expect((await request(app).post('/api/v1/auth/login').set('X-Business', SLUG).send({ username: 'owner', password: 'admin-picked-pass-1' })).status).toBe(404);
+    expect((await request(app).post('/api/v1/auth/login').set('X-Business', SLUG).send({ username: OWNER, password: 'admin-picked-pass-1' })).status).toBe(404);
 
     // other salons untouched; ledger still append-only for everyone else
     const demoAfter = await runAsSystem(() => one<{ n: number }>(`SELECT count(*)::int AS n FROM gift_card_transactions t JOIN businesses b ON b.id = t.business_id WHERE b.slug = $1`, [DEMO_SLUG]));

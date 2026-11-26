@@ -78,6 +78,27 @@ CREATE TABLE IF NOT EXISTS businesses (
   created_at   TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
+-- CID: the salon's account number 00001–99999 (shown zero-padded), in sign-up
+-- order, never reused. Existing salons are numbered oldest first.
+CREATE SEQUENCE IF NOT EXISTS business_cid_seq MINVALUE 1 MAXVALUE 99999 NO CYCLE;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS cid INT;
+ALTER TABLE businesses ALTER COLUMN cid SET DEFAULT nextval('business_cid_seq');
+ALTER SEQUENCE business_cid_seq OWNED BY businesses.cid;
+DO $$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN SELECT id FROM businesses WHERE cid IS NULL ORDER BY created_at, id LOOP
+    UPDATE businesses SET cid = nextval('business_cid_seq') WHERE id = r.id;
+  END LOOP;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'businesses_cid_key') THEN
+    ALTER TABLE businesses ADD CONSTRAINT businesses_cid_key UNIQUE (cid);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'businesses_cid_range') THEN
+    ALTER TABLE businesses ADD CONSTRAINT businesses_cid_range CHECK (cid BETWEEN 1 AND 99999);
+  END IF;
+END $$;
+ALTER TABLE businesses ALTER COLUMN cid SET NOT NULL;
+
 -- The salon this connection is acting for (NULL = none → tenant tables look empty).
 CREATE OR REPLACE FUNCTION fn_current_business() RETURNS BIGINT
 LANGUAGE sql STABLE AS $$ SELECT NULLIF(current_setting('app.business_id', true), '')::BIGINT $$;

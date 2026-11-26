@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { config } from '../config.js';
-import { clientIp, issueSession, sha256 } from '../auth.js';
+import { assertOwnerUsernameFree, clientIp, issueSession, sha256 } from '../auth.js';
 import { one, runAsBusiness, runAsSystem, withTx } from '../db.js';
 import { ApiError } from '../errors.js';
 import { audit } from '../audit.js';
@@ -44,6 +44,17 @@ async function slugTaken(slug: string) {
 
 const checkLimiter = rateLimit({ windowMs: 60_000, limit: 60, standardHeaders: 'draft-8', legacyHeaders: false, keyGenerator: (req) => clientIp(req) ?? 'unknown' });
 
+router.get('/signup/username-available', checkLimiter, async (req, res) => {
+  const u = String(req.query.username ?? '').trim();
+  if (!/^[A-Za-z0-9._-]{2,40}$/.test(u)) return res.json({ available: false, reason: 'Use 2–40 letters, numbers, dots, dashes or underscores.' });
+  try {
+    await assertOwnerUsernameFree(u);
+    res.json({ available: true });
+  } catch (e) {
+    res.json({ available: false, reason: (e as Error).message });
+  }
+});
+
 router.get('/signup/slug-available', checkLimiter, async (req, res) => {
   const parsed = slugSchema.safeParse(String(req.query.slug ?? ''));
   if (!parsed.success) return res.json({ available: false, reason: parsed.error.issues[0]?.message });
@@ -56,9 +67,10 @@ const signupBody = z.object({
   slug: slugSchema,
   owner_name: z.string().trim().min(1, 'Your name is required').max(80),
   email: z.string().trim().toLowerCase().email('Enter a valid email').max(120),
-  username: z.string().trim().regex(/^[A-Za-z0-9._-]{2,40}$/, 'Username: 2–40 letters, numbers, . _ -').default('owner'),
+  username: z.string().trim().regex(/^[A-Za-z0-9._-]{2,40}$/, 'Username: 2–40 letters, numbers, . _ -'),
   password: z.string().min(10, 'Password must be at least 10 characters').max(200),
-  pin: z.string().regex(/^\d{4,8}$/, 'PIN must be 4–8 digits'),
+  /** Optional: staff PINs (and the owner's own) are set later in Settings › Security. */
+  pin: z.string().regex(/^\d{4,8}$/, 'PIN must be 4–8 digits').optional(),
   timezone: z.string().trim().min(1).max(60).optional(),
 });
 
@@ -66,8 +78,9 @@ router.post('/signup', limiter(), async (req, res) => {
   if (!config.signupEnabled) throw new ApiError(403, 'SIGNUP_CLOSED', 'New salon sign-ups are closed. Contact support.');
   const b = signupBody.parse(req.body);
   if (await slugTaken(b.slug)) throw new ApiError(409, 'SLUG_TAKEN', 'That Salon ID is taken', 'slug');
+  await assertOwnerUsernameFree(b.username);
 
-  const [passwordHash, pinHash] = await Promise.all([bcrypt.hash(b.password, 10), bcrypt.hash(b.pin, 10)]);
+  const [passwordHash, pinHash] = await Promise.all([bcrypt.hash(b.password, 10), b.pin ? bcrypt.hash(b.pin, 10) : Promise.resolve(null)]);
   const terminalKey = `gct_${randomBytes(24).toString('base64url')}`;
 
   // One transaction: platform step (create the salon), then everything else
@@ -75,8 +88,8 @@ router.post('/signup', limiter(), async (req, res) => {
   const created = await runAsSystem(() =>
     withTx(
       async (c) => {
-        const biz = await one<{ id: number; slug: string; name: string }>(
-          `INSERT INTO businesses (slug, name, owner_email) VALUES ($1, $2, $3) ON CONFLICT (slug) DO NOTHING RETURNING id, slug, name`,
+        const biz = await one<{ id: number; cid: string; slug: string; name: string }>(
+          `INSERT INTO businesses (slug, name, owner_email) VALUES ($1, $2, $3) ON CONFLICT (slug) DO NOTHING RETURNING id, lpad(cid::text, 5, '0') AS cid, slug, name`,
           [b.slug, b.salon_name, b.email],
           c,
         );
@@ -123,6 +136,6 @@ router.post('/signup', limiter(), async (req, res) => {
 /** Salon name for login screens / kiosk headers (needs a salon in context). */
 export const businessInfo = Router();
 businessInfo.get('/business', (req, res) => {
-  res.json({ slug: req.business!.slug, name: req.business!.name });
+  res.json({ cid: req.business!.cid, slug: req.business!.slug, name: req.business!.name });
 });
 

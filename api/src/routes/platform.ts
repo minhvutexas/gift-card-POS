@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { rmSync } from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.js';
-import { clientIp, invalidateUser, sha256 } from '../auth.js';
+import { assertOwnerUsernameFree, clientIp, invalidateUser, sha256 } from '../auth.js';
 import { one, query, runAsBusiness, runAsSystem } from '../db.js';
 import { ApiError, unauthorized } from '../errors.js';
 import { audit } from '../audit.js';
@@ -63,13 +63,14 @@ router.use('/platform', requirePlatform);
 router.get('/platform/businesses', async (_req, res) => {
   const { rows } = await runAsSystem(() =>
     query(`
-      SELECT b.id, b.slug, b.name, b.status, b.owner_email, b.created_at,
+      SELECT b.id, lpad(b.cid::text, 5, '0') AS cid, b.slug, b.name, b.status, b.owner_email, b.created_at,
              (SELECT count(*)::int FROM users u WHERE u.business_id = b.id AND u.active) AS users,
+             (SELECT u.username FROM users u WHERE u.business_id = b.id AND u.role = 'OWNER' ORDER BY u.active DESC, u.id LIMIT 1) AS owner_username,
              (SELECT count(*)::int FROM gift_cards c WHERE c.business_id = b.id AND c.deleted_at IS NULL) AS cards,
              (SELECT COALESCE(sum(c.balance), 0)::numeric(14,2) FROM gift_cards c
                WHERE c.business_id = b.id AND c.status IN ('ACTIVE','PARTIALUSED') AND c.deleted_at IS NULL) AS outstanding,
              (SELECT max(t.created_at) FROM gift_card_transactions t WHERE t.business_id = b.id) AS last_activity_at
-      FROM businesses b ORDER BY b.created_at DESC, b.id DESC`),
+      FROM businesses b ORDER BY b.cid DESC`),
   );
   res.json({ data: rows });
 });
@@ -88,7 +89,7 @@ router.post('/platform/businesses/:id/status', async (req, res) => {
   const id = bizId(req);
   const { status } = z.object({ status: z.enum(['ACTIVE', 'SUSPENDED']) }).parse(req.body);
   await mustExist(id);
-  const b = await runAsSystem(() => one('UPDATE businesses SET status = $2 WHERE id = $1 RETURNING id, slug, name, status', [id, status]));
+  const b = await runAsSystem(() => one(`UPDATE businesses SET status = $2 WHERE id = $1 RETURNING id, lpad(cid::text, 5, '0') AS cid, slug, name, status`, [id, status]));
   invalidateBusiness();
   await runAsBusiness(id, () => audit(platformActor(req), status === 'SUSPENDED' ? 'business.suspended' : 'business.reactivated', { entityType: 'business', entityId: id }));
   res.json(b);
@@ -100,28 +101,46 @@ router.post('/platform/businesses/:id/status', async (req, res) => {
  */
 router.post('/platform/businesses/:id/reset-owner', async (req, res) => {
   const id = bizId(req);
-  const b = z.object({ password: z.string().min(10, 'Password must be at least 10 characters').max(200).optional() }).parse(req.body ?? {});
+  const b = z
+    .object({
+      /** new sign-in name (unique across salons) — omit to keep */
+      username: z.string().trim().regex(/^[A-Za-z0-9._-]{2,40}$/, 'Username: 2–40 letters, numbers, . _ -').optional(),
+      /** new password — omit to generate one (unless keep_password) */
+      password: z.string().min(10, 'Password must be at least 10 characters').max(200).optional(),
+      keep_password: z.boolean().optional(),
+    })
+    .parse(req.body ?? {});
   await mustExist(id);
+  const owner0 = await runAsBusiness(id, () =>
+    one<{ id: number; username: string }>(`SELECT id, username FROM users WHERE role = 'OWNER' ORDER BY active DESC, id LIMIT 1`),
+  );
+  if (!owner0) throw new ApiError(404, 'NOT_FOUND', 'This salon has no owner account');
+  if (b.username && b.username.toLowerCase() !== owner0.username.toLowerCase()) await assertOwnerUsernameFree(b.username, owner0.id);
+
+  const keep = !!b.keep_password && b.password === undefined;
   const chosen = b.password !== undefined;
-  const password = b.password ?? randomBytes(9).toString('base64url'); // 12 chars
-  const hash = await bcrypt.hash(password, 10);
+  const password = keep ? null : (b.password ?? randomBytes(9).toString('base64url')); // generated: 12 chars
+  const hash = password ? await bcrypt.hash(password, 10) : null;
   const owner = await runAsBusiness(id, async () => {
     const u = await one<{ id: number; username: string; name: string }>(
-      `UPDATE users SET password_hash = $1, active = TRUE, failed_pin_attempts = 0, locked_until = NULL
-       WHERE id = (SELECT id FROM users WHERE role = 'OWNER' ORDER BY active DESC, id LIMIT 1)
-       RETURNING id, username, name`,
-      [hash],
+      `UPDATE users SET username = COALESCE($2, username), password_hash = COALESCE($3, password_hash),
+              active = TRUE, failed_pin_attempts = 0, locked_until = NULL
+       WHERE id = $1 RETURNING id, username, name`,
+      [owner0.id, b.username ?? null, hash],
     );
-    if (!u) throw new ApiError(404, 'NOT_FOUND', 'This salon has no owner account');
-    invalidateUser(u.id);
-    await audit(platformActor(req), 'user.password_reset_by_platform', { entityType: 'user', entityId: u.id });
-    return u;
+    invalidateUser(u!.id);
+    await audit(platformActor(req), 'user.login_changed_by_platform', {
+      entityType: 'user',
+      entityId: u!.id,
+      payload: { username_changed: !!b.username && b.username !== owner0.username, password: keep ? 'kept' : chosen ? 'set' : 'generated' },
+    });
+    return u!;
   });
   res.json({
     username: owner.username,
     name: owner.name,
-    ...(chosen ? {} : { temporary_password: password }),
-    note: chosen ? 'Password changed.' : 'Give this to the owner. Ask them to change it after logging in.',
+    ...(password && !chosen ? { temporary_password: password } : {}),
+    note: keep ? 'Username changed. Password unchanged.' : chosen ? 'Password changed.' : 'Give this to the owner. Ask them to change it after logging in.',
   });
 });
 

@@ -13,7 +13,7 @@ import { pool } from './db.js';
 import { requireBusiness, resolveTenant } from './tenant.js';
 import { router as signupRoutes, businessInfo } from './routes/signup.js';
 import { router as platformRoutes } from './routes/platform.js';
-import { router as authRoutes } from './routes/auth.js';
+import { router as authRoutes, loginRouter } from './routes/auth.js';
 import { router as cardRoutes } from './routes/cards.js';
 import { router as customerRoutes } from './routes/customers.js';
 import { router as historyRoutes } from './routes/history.js';
@@ -62,6 +62,7 @@ export function createApp() {
   // Which salon is this request for? (terminal key → session → Salon ID).
   // Everything after requireBusiness runs inside that salon's RLS context.
   v1.use(resolveTenant);
+  v1.use(loginRouter); // owner password sign-in works with or without a salon named
   v1.use(requireBusiness);
   v1.use(businessInfo); // salon name for login screens and the kiosk
 

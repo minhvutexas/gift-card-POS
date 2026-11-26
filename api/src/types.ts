@@ -10,6 +10,8 @@ export interface AuthUser {
 
 export interface BusinessInfo {
   id: number;
+  /** account number, zero-padded: "00001" */
+  cid: string;
   slug: string;
   name: string;
   status: 'ACTIVE' | 'SUSPENDED';
@@ -37,6 +39,8 @@ declare global {
     interface Request {
       user?: AuthUser;
       business?: BusinessInfo;
+      /** salon came only from DEFAULT_BUSINESS (nothing in the request named it) */
+      businessFromDefault?: boolean;
       terminal?: TerminalInfo;
       idempotencyKey?: string;
     }
