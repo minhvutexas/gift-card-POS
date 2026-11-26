@@ -99,6 +99,16 @@ BEGIN
 END $$;
 ALTER TABLE businesses ALTER COLUMN cid SET NOT NULL;
 
+-- Platform-wide switches set by the platform admin (not per salon, no RLS).
+CREATE TABLE IF NOT EXISTS platform_settings (
+  key         TEXT PRIMARY KEY,
+  value       JSONB       NOT NULL,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Email/SMS start OFF until the admin turns them on (/platform → Settings).
+INSERT INTO platform_settings (key, value) VALUES ('features', '{"messaging": false}')
+ON CONFLICT (key) DO NOTHING;
+
 -- The salon this connection is acting for (NULL = none → tenant tables look empty).
 CREATE OR REPLACE FUNCTION fn_current_business() RETURNS BIGINT
 LANGUAGE sql STABLE AS $$ SELECT NULLIF(current_setting('app.business_id', true), '')::BIGINT $$;

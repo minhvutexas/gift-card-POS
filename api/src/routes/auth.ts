@@ -10,6 +10,7 @@ import { query, runAsBusiness } from '../db.js';
 import { ApiError } from '../errors.js';
 import { getAllSettings } from '../settings.js';
 import { businessByCid } from '../tenant.js';
+import { getFeatures } from '../platform-settings.js';
 import type { Actor } from '../types.js';
 
 export const router = Router();
@@ -93,6 +94,7 @@ router.get('/auth/me', authenticate, async (req, res) => {
     user: { id: req.user!.id, name: req.user!.name, username: req.user!.username, role: req.user!.role, permissions: [...req.user!.perms] },
     terminal: req.terminal ?? null,
     business: { cid: req.business!.cid, slug: req.business!.slug, name: req.business!.name },
+    features: await getFeatures(),
     settings: { general: s.general, security: s.security, printer: s.printer, receipt: s.receipt, loyalty: s.loyalty },
   });
 });

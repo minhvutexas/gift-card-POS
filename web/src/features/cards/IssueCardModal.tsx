@@ -87,9 +87,11 @@ export function IssueCardModal({ onClose, initialNumber = '' }: { onClose: () =>
           <Button variant="secondary" onClick={() => print(done.card.id, done.transaction?.id)}>
             <Printer className="h-5 w-5" /> Print
           </Button>
-          <Button variant="secondary" onClick={() => open('send', done.card)}>
-            <Send className="h-5 w-5" /> Email / SMS
-          </Button>
+          {me?.features?.messaging && (
+            <Button variant="secondary" onClick={() => open('send', done.card)}>
+              <Send className="h-5 w-5" /> Email / SMS
+            </Button>
+          )}
           <Button
             variant="secondary"
             onClick={() => {

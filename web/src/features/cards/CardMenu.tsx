@@ -45,9 +45,10 @@ export const CARD_ITEMS: Item[] = [
 ];
 
 export function useCardItems(card: Card) {
-  const { can } = useSession();
+  const { can, me } = useSession();
+  const messaging = !!me?.features?.messaging;
   const { open, print } = useCardActions();
-  const items = CARD_ITEMS.filter((i) => i.show(card) && can(i.perm));
+  const items = CARD_ITEMS.filter((i) => i.show(card) && can(i.perm) && (i.kind !== 'send' || messaging));
   const run = (kind: Item['kind']) => {
     if (kind === 'print') return print(card.id);
     if (kind === 'statement') return openPdf(`/cards/statement/${card.id}.pdf`);

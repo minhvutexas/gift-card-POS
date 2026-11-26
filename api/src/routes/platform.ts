@@ -12,6 +12,7 @@ import { one, query, runAsBusiness, runAsSystem } from '../db.js';
 import { ApiError, unauthorized } from '../errors.js';
 import { audit } from '../audit.js';
 import { invalidateBusiness } from '../tenant.js';
+import { getFeatures, setFeatures } from '../platform-settings.js';
 
 /**
  * Platform admin (the person running the server, not a salon). One password
@@ -178,4 +179,16 @@ router.post('/platform/businesses/:id/delete', async (req, res) => {
   rmSync(path.join(config.backupDir, `salon-${id}`), { recursive: true, force: true });
   console.warn(`[platform] salon ${b.slug} (#${id}) deleted from ${clientIp(req)}`);
   res.json({ deleted: true, slug: b.slug, name: b.name, rows: r?.deleted ?? {} });
+});
+
+/** Platform-wide switches (all salons). */
+router.get('/platform/settings', async (_req, res) => {
+  res.json(await getFeatures());
+});
+
+router.put('/platform/settings', async (req, res) => {
+  const b = z.object({ messaging: z.boolean().optional() }).strict().parse(req.body ?? {});
+  const next = await setFeatures(b);
+  console.warn(`[platform] settings changed from ${clientIp(req)}: ${JSON.stringify(b)}`);
+  res.json(next);
 });

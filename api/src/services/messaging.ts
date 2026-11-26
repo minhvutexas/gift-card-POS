@@ -5,6 +5,7 @@ import { formatCents } from '../money.js';
 import { getAllSettings } from '../settings.js';
 import type { Card, Txn } from './cards.js';
 import { kioskUrl, maskNumber } from './qr.js';
+import { getFeatures } from '../platform-settings.js';
 import { currentBusinessId } from '../db.js';
 import { businessById } from '../tenant.js';
 
@@ -63,6 +64,7 @@ async function deliver(channel: MsgChannel, to: string, subject: string | null, 
 }
 
 export async function sendTemplate(card: Card, key: string, channel: MsgChannel, opts: { to?: string; extra?: Record<string, string> } = {}) {
+  if (!(await getFeatures()).messaging) throw new ApiError(403, 'MESSAGING_DISABLED', 'Email and SMS are turned off for now.');
   const tpl = await one<{ subject: string | null; body: string }>('SELECT subject, body FROM message_templates WHERE key = $1 AND channel = $2 AND active', [key, channel]);
   if (!tpl) throw new ApiError(404, 'TEMPLATE_NOT_FOUND', `No active ${channel} template "${key}"`);
   const to = opts.to ?? (channel === 'EMAIL' ? card.customer?.email : card.customer?.phone);
@@ -88,6 +90,7 @@ export async function sendTemplate(card: Card, key: string, channel: MsgChannel,
 /** Automatic messages after money movements (best-effort, never blocks the sale). */
 export async function notifyAfterTxn(card: Card, txn: Txn) {
   if (!card.customer || card.customer.erased) return;
+  if (!(await getFeatures()).messaging) return;
   const s = (await getAllSettings()).messaging;
   const channel: MsgChannel | null = card.customer.email ? 'EMAIL' : card.customer.phone ? 'SMS' : null;
   if (!channel) return;
@@ -103,6 +106,7 @@ export async function notifyAfterTxn(card: Card, txn: Txn) {
 
 /** Nightly: expiry warnings N days before (deduped per card/day via message_log). */
 export async function sendExpiryWarnings(getCard: (id: number) => Promise<Card>) {
+  if (!(await getFeatures()).messaging) return 0;
   const s = (await getAllSettings()).messaging;
   let sent = 0;
   for (const days of s.expiry_warning_days) {

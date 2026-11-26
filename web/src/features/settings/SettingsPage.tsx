@@ -23,8 +23,9 @@ const TABS = [
 
 export function SettingsPage() {
   const { tab } = useParams();
-  const { can } = useSession();
-  const tabs = TABS.filter((t) => !('perm' in t) || can(t.perm));
+  const { can, me } = useSession();
+  // Email/SMS settings only matter once the platform admin has turned messaging on.
+  const tabs = TABS.filter((t) => (!('perm' in t) || can(t.perm)) && (t.key !== 'messaging' || !!me?.features?.messaging));
   const active = tabs.find((t) => t.key === tab);
   if (!active) return <Navigate to="/settings/general" replace />;
   const Panel = active.el;

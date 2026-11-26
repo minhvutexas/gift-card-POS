@@ -108,6 +108,8 @@ export interface Me {
   user: { id: number; name: string; username: string; role: string; permissions: string[] };
   terminal: { id: number; code: string; name: string; kind: string } | null;
   business: { cid: string; slug: string; name: string };
+  /** platform-wide switches set by the platform admin */
+  features?: { messaging: boolean };
   settings: {
     general: { business_name: string; timezone: string; currency: string; address: string; phone: string; logo_url: string; tax_rate_bps: number };
     security: { session_timeout_min: number; activity_lock_min: number; approval_threshold_cents: number; undo_window_sec: number; offline_max_redeem_cents: number; dual_control_voids: boolean; dual_control_refunds: boolean };

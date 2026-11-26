@@ -27,14 +27,14 @@ const setTok = (v: string | null) => {
   }
 };
 
-async function papi<T>(path: string, body?: unknown): Promise<T> {
+async function papi<T>(path: string, body?: unknown, method?: 'PUT'): Promise<T> {
   const h: Record<string, string> = { Accept: 'application/json' };
   const t = getTok();
   if (t) h.Authorization = `Bearer ${t}`;
   if (body !== undefined) h['Content-Type'] = 'application/json';
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, { method: body === undefined ? 'GET' : 'POST', headers: h, body: body === undefined ? undefined : JSON.stringify(body) });
+    res = await fetch(`${API_BASE}${path}`, { method: method ?? (body === undefined ? 'GET' : 'POST'), headers: h, body: body === undefined ? undefined : JSON.stringify(body) });
   } catch {
     throw new ApiError(0, 'NETWORK', 'Can’t reach the server.');
   }
@@ -200,6 +200,7 @@ function Salons({ onLogout }: { onLogout: () => void }) {
       </header>
 
       <main className="mx-auto max-w-6xl p-4">
+        <PlatformSettings />
         <div className="mb-4 max-w-sm">
           <label htmlFor="pf" className="mb-1 block text-sm font-semibold">
             Find a salon
@@ -386,5 +387,52 @@ function Salons({ onLogout }: { onLogout: () => void }) {
         )}
       </Modal>
     </div>
+  );
+}
+
+/** Platform-wide switches (apply to every salon). */
+function PlatformSettings() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['platform-settings'], queryFn: () => papi<{ messaging: boolean }>('/platform/settings'), retry: false });
+  const save = useMutation({
+    mutationFn: (messaging: boolean) => papi<{ messaging: boolean }>('/platform/settings', { messaging }, 'PUT'),
+    onSuccess: (v) => qc.setQueryData(['platform-settings'], v),
+  });
+  const on = !!q.data?.messaging;
+  return (
+    <section aria-labelledby="ps-h" className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      <h2 id="ps-h" className="text-base font-bold">
+        Platform settings
+      </h2>
+      <div className="mt-3 flex items-start justify-between gap-4">
+        <div>
+          <p id="msg-label" className="font-semibold">
+            Email &amp; SMS to customers
+          </p>
+          <p id="msg-desc" className="text-sm text-slate-600 dark:text-slate-300">
+            {on
+              ? 'On for all salons: the “Email / SMS” button, the Messaging settings tab and automatic messages (reload thanks, low balance, expiry reminders).'
+              : 'Off for all salons. The Email / SMS button and Messaging settings are hidden, and no messages are sent.'}
+          </p>
+          {save.error && (
+            <p role="alert" className="mt-1 text-sm text-red-700 dark:text-red-400">
+              Couldn’t save: {(save.error as Error).message}
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-labelledby="msg-label"
+          aria-describedby="msg-desc"
+          disabled={q.isLoading || save.isPending}
+          onClick={() => save.mutate(!on)}
+          className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-50 ${on ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+        >
+          <span className={`inline-block h-6 w-6 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-7' : 'translate-x-1'}`} />
+        </button>
+      </div>
+    </section>
   );
 }
