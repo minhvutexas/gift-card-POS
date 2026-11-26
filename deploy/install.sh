@@ -99,7 +99,10 @@ fi
 ln -sf /etc/nginx/sites-available/giftcard /etc/nginx/sites-enabled/giftcard
 rm -f /etc/nginx/sites-enabled/default
 chmod o+x /opt "$APP" "$APP/web"
-nginx -t && systemctl reload nginx
+nginx -t
+systemctl enable nginx
+# restart (not reload): also works when Nginx was installed but never started
+systemctl restart nginx || { echo "Nginx would not start. Port 80 in use? Run: sudo ss -ltnp | grep ':80 '"; exit 1; }
 
 log "Firewall"
 ufw allow OpenSSH
