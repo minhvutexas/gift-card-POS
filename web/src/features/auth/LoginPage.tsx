@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { KeyRound, Lock, MonitorSmartphone } from 'lucide-react';
 import { Logo } from '../../components/Logo';
+import { FeedbackDialog } from '../../components/Feedback';
 import { api, ApiError, onTerminalKeyDropped, store } from '../../lib/api';
 import { useSession } from '../../lib/session';
 import { PinPad } from '../../components/Keypad';
@@ -54,6 +55,7 @@ export function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [terminalKey, setTerminalKey] = useState(store.terminalKey ?? '');
+  const [feedback, setFeedback] = useState(false);
 
   const submitPin = async (p: string) => {
     setBusy(true);
@@ -217,7 +219,12 @@ export function LoginPage() {
           <Link to="/signup" className="font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-300">
             Create your account
           </Link>
+          {' · '}
+          <button type="button" onClick={() => setFeedback(true)} className="font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-300">
+            Feedback & support
+          </button>
         </p>
+        <FeedbackDialog open={feedback} onClose={() => setFeedback(false)} />
       </div>
     </div>
   );

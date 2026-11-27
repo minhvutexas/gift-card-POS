@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, CreditCard, History, LayoutDashboard, LogOut, Lock, Moon, Plus, Settings, Sun, Users, ExternalLink, WifiOff } from 'lucide-react';
+import { Bell, CreditCard, History, LayoutDashboard, LogOut, Lock, MessageCircleQuestion, Moon, Plus, Settings, Sun, Users, ExternalLink, WifiOff } from 'lucide-react';
 import { api } from '../lib/api';
 import { useClock, useLiveEvents } from '../lib/live';
 import { formatCents } from '../lib/money';
@@ -13,6 +13,7 @@ import type { CardList } from '../lib/types';
 import { useCardActions } from '../features/cards/CardActions';
 import { AnimatedMoney, Button } from './ui';
 import { Logo } from './Logo';
+import { FeedbackDialog } from './Feedback';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, perm: 'dashboard.read', end: true },
@@ -34,6 +35,7 @@ export function toggleTheme() {
 export function Layout() {
   const { me, can, logout, lock } = useSession();
   const { open } = useCardActions();
+  const [feedback, setFeedback] = useState(false);
   const live = useLiveEvents(!!me);
   const online = useOnline();
   const now = useClock();
@@ -89,7 +91,16 @@ export function Layout() {
           <ExternalLink className="h-6 w-6" aria-hidden />
           Kiosk ↗
         </a>
+        <button
+          type="button"
+          onClick={() => setFeedback(true)}
+          className="hidden min-h-[56px] min-w-[56px] flex-col items-center justify-center gap-0.5 rounded-lg px-2 text-[11px] font-medium text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:hover:text-white md:mx-2 md:mt-auto md:flex"
+        >
+          <MessageCircleQuestion className="h-6 w-6" aria-hidden />
+          Feedback
+        </button>
       </nav>
+      <FeedbackDialog open={feedback} onClose={() => setFeedback(false)} />
 
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
         {/* Top bar */}
@@ -131,7 +142,7 @@ export function Layout() {
               <Sun className="mx-auto hidden h-5 w-5 dark:block" />
               <Moon className="mx-auto h-5 w-5 dark:hidden" />
             </button>
-            <UserMenu name={me?.user.name ?? ''} role={me?.user.role ?? ''} onLock={lock} onLogout={logout} />
+            <UserMenu name={me?.user.name ?? ''} role={me?.user.role ?? ''} onLock={lock} onLogout={logout} onFeedback={() => setFeedback(true)} />
             {can('cards.issue') && (
               <Button onClick={() => open('issue')} aria-keyshortcuts="Alt+N" aria-label="New card" className="px-3 sm:px-4">
                 <Plus className="h-5 w-5" /> <span className="hidden sm:inline">New Card</span>
@@ -161,7 +172,7 @@ export function Layout() {
   );
 }
 
-function UserMenu({ name, role, onLock, onLogout }: { name: string; role: string; onLock: () => void; onLogout: () => void }) {
+function UserMenu({ name, role, onLock, onLogout, onFeedback }: { name: string; role: string; onLock: () => void; onLogout: () => void; onFeedback: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -183,7 +194,10 @@ function UserMenu({ name, role, onLock, onLogout }: { name: string; role: string
         </span>
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 z-30 mt-1 w-48 rounded-lg bg-white py-1 shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-700">
+        <div role="menu" className="absolute right-0 z-30 mt-1 w-56 rounded-lg bg-white py-1 shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-700">
+          <button role="menuitem" onClick={() => (setOpen(false), onFeedback())} className="flex min-h-[44px] w-full items-center gap-2 px-4 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
+            <MessageCircleQuestion className="h-4 w-4" /> Feedback & support
+          </button>
           <button role="menuitem" onClick={() => (setOpen(false), onLock())} className="flex min-h-[44px] w-full items-center gap-2 px-4 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
             <Lock className="h-4 w-4" /> Lock / switch user
           </button>
