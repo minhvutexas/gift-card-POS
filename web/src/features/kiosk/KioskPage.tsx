@@ -7,6 +7,7 @@ import { formatCents, signedCents } from '../../lib/money';
 import { STATUS } from '../../lib/status';
 import type { CardStatus } from '../../lib/types';
 import { Button, StatusPill } from '../../components/ui';
+import { Logo } from '../../components/Logo';
 import { PinPad } from '../../components/Keypad';
 
 interface KioskView {
@@ -110,10 +111,10 @@ export function KioskPage() {
   const salonCode = salon.error instanceof ApiError ? salon.error.code : null;
   if (salonCode === 'BUSINESS_NOT_FOUND' || salonCode === 'BUSINESS_SUSPENDED')
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 via-white to-pink-100 p-4 text-center dark:from-slate-950 dark:via-slate-900 dark:to-brand-950 dark:text-white">
-        <main className="max-w-md rounded-3xl bg-white p-6 shadow-xl dark:bg-slate-900">
+      <div className="flex min-h-screen items-center justify-center p-4 text-center dark:text-white bg-zinc-50 dark:bg-zinc-950">
+        <main className="max-w-md rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <h1 className="text-2xl font-bold">{salonCode === 'BUSINESS_NOT_FOUND' ? 'We can’t find this salon' : 'Balance check is unavailable'}</h1>
-          <p className="mt-2 text-slate-600 dark:text-slate-300">
+          <p className="mt-2 text-zinc-600 dark:text-zinc-300">
             {salonCode === 'BUSINESS_NOT_FOUND' ? 'Check the link on your receipt, or ask the front desk for your balance.' : 'Please ask the front desk for your balance.'}
           </p>
         </main>
@@ -121,17 +122,15 @@ export function KioskPage() {
     );
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-brand-50 via-white to-pink-100 p-4 text-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-brand-950 dark:text-white">
+    <div className="flex min-h-screen flex-col items-center justify-center p-4 text-zinc-900 dark:text-white bg-zinc-50 dark:bg-zinc-950">
       <main className="w-full max-w-md">
         <header className="mb-6 text-center">
-          <div className="text-6xl" aria-hidden>
-            🎁
-          </div>
-          {salon.data && <p className="mt-2 text-lg font-semibold text-brand-700 dark:text-brand-300">{salon.data.name}</p>}
-          <h1 className="mt-1 text-3xl font-extrabold">Check your gift card</h1>
+          <Logo size="lg" className="mx-auto" />
+          {salon.data && <p className="mt-3 text-base font-medium text-zinc-600 dark:text-zinc-300">{salon.data.name}</p>}
+          <h1 className="mt-1 text-2xl font-semibold">Check your gift card</h1>
         </header>
 
-        <div className="rounded-3xl bg-white p-6 shadow-xl dark:bg-slate-900">
+        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           {step === 'number' && (
             <form
               onSubmit={(e) => {
@@ -151,12 +150,12 @@ export function KioskPage() {
                 autoFocus
                 inputMode="numeric"
                 autoComplete="off"
-                className="block w-full min-h-[64px] rounded-2xl border-0 text-center font-mono text-3xl tracking-widest ring-2 ring-slate-300 focus:ring-4 focus:ring-brand-500 dark:bg-slate-800 dark:ring-slate-600"
+                className="block w-full min-h-[64px] rounded-xl border-0 text-center font-mono text-3xl tracking-widest ring-2 ring-zinc-300 focus:ring-4 focus:ring-brand-500 dark:bg-zinc-800 dark:ring-zinc-600"
                 value={number}
                 onChange={(e) => setNumber(e.target.value.replace(/[^0-9A-Za-z]/g, '').toUpperCase())}
                 aria-describedby="k-hint"
               />
-              <p id="k-hint" className="text-center text-sm text-slate-500">
+              <p id="k-hint" className="text-center text-sm text-zinc-500">
                 Or scan the QR code on your receipt with your phone camera.
               </p>
               {err && (
@@ -179,15 +178,15 @@ export function KioskPage() {
               <Button variant="ghost" className="w-full" onClick={() => (setStep('number'), setPin(''), setErr(null))}>
                 Back
               </Button>
-              <p className="text-center text-xs text-slate-500">No PIN? Ask at the front desk.</p>
+              <p className="text-center text-xs text-zinc-500">No PIN? Ask at the front desk.</p>
             </div>
           )}
 
-          {step === 'view' && !view && <p className="py-10 text-center text-slate-500">{err ?? 'Loading…'}</p>}
+          {step === 'view' && !view && <p className="py-10 text-center text-zinc-500">{err ?? 'Loading…'}</p>}
 
           {step === 'view' && view && (
             <div className="space-y-5">
-              <div className="rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 p-5 text-white">
+              <div className="rounded-xl p-5 text-white bg-zinc-900 dark:bg-zinc-800 dark:ring-1 dark:ring-zinc-700">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-2 font-mono text-xl tracking-widest">
                     <CreditCard className="h-5 w-5" aria-hidden /> {view.card_masked}
@@ -197,15 +196,15 @@ export function KioskPage() {
                   </span>
                 </div>
                 <p className="mt-4 text-sm opacity-80">Available balance</p>
-                <p className="text-6xl font-extrabold tabular-nums" aria-live="polite">
+                <p className="text-6xl font-bold tabular-nums" aria-live="polite">
                   {formatCents(view.balance_cents, view.currency)}
                 </p>
                 {view.expires_at && <p className="mt-1 text-sm opacity-80">Expires {new Date(view.expires_at).toLocaleDateString()}</p>}
               </div>
 
-              {view.status === 'FROZEN' && <p className="rounded-xl bg-sky-50 p-3 text-sky-900 dark:bg-sky-950 dark:text-sky-100">❄ {STATUS.FROZEN.hint}. Please see the front desk.</p>}
+              {view.status === 'FROZEN' && <p className="rounded-lg bg-sky-50 p-3 text-sky-900 dark:bg-sky-950 dark:text-sky-100">❄ {STATUS.FROZEN.hint}. Please see the front desk.</p>}
               {msg && (
-                <p role="status" className="rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">
+                <p role="status" className="rounded-lg bg-emerald-50 p-3 font-semibold text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">
                   {msg}
                 </p>
               )}
@@ -214,21 +213,21 @@ export function KioskPage() {
                 <h2 id="k-recent" className="mb-2 font-bold">
                   Recent activity
                 </h2>
-                <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
                   {view.transactions.map((t, i) => (
                     <li key={i} className="flex justify-between py-2">
                       <span>
                         {t.type}
-                        <span className="block text-xs text-slate-500">{new Date(t.date).toLocaleDateString()}</span>
+                        <span className="block text-xs text-zinc-500">{new Date(t.date).toLocaleDateString()}</span>
                       </span>
-                      <span className={`font-semibold tabular-nums ${t.amount_cents > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'}`}>{signedCents(t.amount_cents)}</span>
+                      <span className={`font-semibold tabular-nums ${t.amount_cents > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-700 dark:text-zinc-200'}`}>{signedCents(t.amount_cents)}</span>
                     </li>
                   ))}
                 </ul>
               </section>
 
               {panel === 'lost' && (
-                <div className="space-y-2 rounded-2xl bg-red-50 p-4 text-red-900 dark:bg-red-950 dark:text-red-100">
+                <div className="space-y-2 rounded-xl bg-red-50 p-4 text-red-900 dark:bg-red-950 dark:text-red-100">
                   <p className="font-semibold">Freeze this card now?</p>
                   <p className="text-sm">Nobody will be able to use it. The front desk can move your balance to a new card.</p>
                   <div className="flex gap-2">
@@ -242,7 +241,7 @@ export function KioskPage() {
                 </div>
               )}
 
-              <p className="text-center text-sm text-slate-500">To add money to your card, please visit the front desk.</p>
+              <p className="text-center text-sm text-zinc-500">To add money to your card, please visit the front desk.</p>
               {view.can_report_lost && (
                 <Button size="lg" variant="secondary" className="w-full" onClick={() => setPanel(panel === 'lost' ? 'none' : 'lost')}>
                   <ShieldAlert className="h-5 w-5" /> Report lost

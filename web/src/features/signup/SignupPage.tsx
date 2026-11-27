@@ -110,14 +110,14 @@ export function SignupPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 to-slate-100 p-4 dark:from-slate-950 dark:to-slate-900">
-      <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl dark:bg-slate-900 sm:p-8">
+    <div className="flex min-h-screen items-center justify-center p-4 bg-zinc-50 dark:bg-zinc-950">
+      <div className="w-full max-w-lg rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-8">
         {done ? (
           <Welcome created={done} />
         ) : (
           <>
             <h1 className="text-2xl font-bold">Create your salon account</h1>
-            <p className="mt-1 text-slate-600 dark:text-slate-300">Gift cards for your salon. Free to start.</p>
+            <p className="mt-1 text-zinc-600 dark:text-zinc-300">Gift cards for your salon. Free to start.</p>
 
             <form className="mt-6 space-y-4" onSubmit={submit} noValidate>
               <Field label="Salon name" htmlFor="sn" error={shown('salon_name')}>
@@ -173,9 +173,9 @@ export function SignupPage() {
               <Field label="Password" htmlFor="pw" error={shown('password')} hint="At least 10 characters.">
                 <input id="pw" type="password" className={inputCls} value={f.password} onChange={(e) => set('password', e.target.value)} onBlur={blur('password')} autoComplete="new-password" />
               </Field>
-              <p className="text-sm text-slate-600 dark:text-slate-300">Staff PINs (and your own) are added later in Settings › Security.</p>
+              <p className="text-sm text-zinc-600 dark:text-zinc-300">Staff PINs (and your own) are added later in Settings › Security.</p>
               {formErr && (
-                <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950/40 dark:text-red-200">
+                <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950/40 dark:text-red-200">
                   {formErr}
                 </p>
               )}
@@ -183,7 +183,7 @@ export function SignupPage() {
                 Create salon account
               </Button>
             </form>
-            <p className="mt-6 text-center text-sm text-slate-600 dark:text-slate-300">
+            <p className="mt-6 text-center text-sm text-zinc-600 dark:text-zinc-300">
               Already have an account?{' '}
               <Link to="/" className="font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-300">
                 Sign in
@@ -200,9 +200,9 @@ function CopyRow({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div>
-      <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">{label}</div>
+      <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">{label}</div>
       <div className="mt-1 flex items-center gap-2">
-        <code className="min-w-0 flex-1 break-all rounded-xl bg-slate-100 px-3 py-2 font-mono text-sm dark:bg-slate-800">{value}</code>
+        <code className="min-w-0 flex-1 break-all rounded-lg bg-zinc-100 px-3 py-2 font-mono text-sm dark:bg-zinc-800">{value}</code>
         <Button
           variant="secondary"
           size="sm"
@@ -229,14 +229,14 @@ function Welcome({ created }: { created: Created }) {
   return (
     <div>
       <h1 className="text-2xl font-bold">{created.business.name} is ready</h1>
-      <p className="mt-1 text-slate-600 dark:text-slate-300">This device is signed in and paired. Save these somewhere safe.</p>
+      <p className="mt-1 text-zinc-600 dark:text-zinc-300">This device is signed in and paired. Save these somewhere safe.</p>
       <div className="mt-6 space-y-4">
         <CopyRow label="CID (your account number)" value={created.business.cid} />
         {created.username && <CopyRow label="Username" value={created.username} />}
         <CopyRow label="Salon ID (for your customer balance page)" value={created.business.slug} />
         <CopyRow label="Terminal key (shown only once)" value={created.terminal_key} />
       </div>
-      <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">
+      <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-300">
         Next: add your staff and their PINs in Settings › Security. To use another device at the front desk, create a key in Settings › Terminal. Customers check balances at{' '}
         <span className="font-mono">/k/{created.business.slug}</span>.
       </p>

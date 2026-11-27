@@ -42,7 +42,7 @@ export function CustomersPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Customers</h1>
-          <p className="text-slate-500">Card holders. Used for delivery, reminders and lost-card recovery.</p>
+          <p className="text-zinc-500">Card holders. Used for delivery, reminders and lost-card recovery.</p>
         </div>
         {can('customers.write') && (
           <Button onClick={() => setEdit('new')}>
@@ -51,7 +51,7 @@ export function CustomersPage() {
         )}
       </div>
       <div className="relative max-w-xl">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" aria-hidden />
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" aria-hidden />
         <input type="search" className={`${inputCls} pl-10`} placeholder="Search name, phone, email" aria-label="Search customers" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       {list.isLoading ? (
@@ -61,16 +61,16 @@ export function CustomersPage() {
           {deb ? 'Try a phone number or part of the name.' : 'Customers are created automatically when you add holder details while issuing a card.'}
         </EmptyState>
       ) : (
-        <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:divide-slate-800 dark:bg-slate-900 dark:ring-slate-800">
+        <ul className="divide-y divide-zinc-100 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-zinc-200 dark:divide-zinc-800 dark:bg-zinc-900 dark:ring-zinc-800">
           {list.data.data.map((c) => (
             <li key={c.id}>
-              <button onClick={() => setView(c.id)} className="grid min-h-[60px] w-full grid-cols-[1fr_auto] items-center gap-2 px-4 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800 sm:grid-cols-[1.2fr_1fr_1fr_auto]">
+              <button onClick={() => setView(c.id)} className="grid min-h-[60px] w-full grid-cols-[1fr_auto] items-center gap-2 px-4 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 sm:grid-cols-[1.2fr_1fr_1fr_auto]">
                 <span className="font-semibold">{[c.first_name, c.last_name].filter(Boolean).join(' ') || '(no name)'}</span>
-                <span className="hidden text-sm text-slate-500 sm:block">{c.phone ?? '—'}</span>
-                <span className="hidden truncate text-sm text-slate-500 sm:block">{c.email ?? '—'}</span>
+                <span className="hidden text-sm text-zinc-500 sm:block">{c.phone ?? '—'}</span>
+                <span className="hidden truncate text-sm text-zinc-500 sm:block">{c.email ?? '—'}</span>
                 <span className="text-right text-sm">
                   <strong className="tabular-nums">{formatCents(c.balance_cents)}</strong>
-                  <span className="block text-xs text-slate-500">
+                  <span className="block text-xs text-zinc-500">
                     {c.card_count} card{c.card_count === 1 ? '' : 's'}
                     {c.loyalty_points ? ` · ${c.loyalty_points} pts` : ''}
                   </span>
@@ -196,7 +196,7 @@ function CustomerView({ id, onClose, onEdit }: { id: number; onClose: () => void
         <SkeletonRows rows={3} />
       ) : erase ? (
         <div className="space-y-3">
-          <p className="rounded-xl bg-red-50 p-3 text-red-900 dark:bg-red-950 dark:text-red-100">Removes name, phone, email and notes permanently. Card balances and the money ledger are kept (legal requirement). A manager must approve.</p>
+          <p className="rounded-lg bg-red-50 p-3 text-red-900 dark:bg-red-950 dark:text-red-100">Removes name, phone, email and notes permanently. Card balances and the money ledger are kept (legal requirement). A manager must approve.</p>
           <Field label='Type "ERASE" to confirm' htmlFor="erase-c">
             <input id="erase-c" className={inputCls} value={confirm} onChange={(e) => setConfirm(e.target.value)} />
           </Field>
@@ -212,25 +212,25 @@ function CustomerView({ id, onClose, onEdit }: { id: number; onClose: () => void
       ) : (
         <>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-            <dt className="text-slate-500">Phone</dt>
+            <dt className="text-zinc-500">Phone</dt>
             <dd>{c.phone ?? '—'}</dd>
-            <dt className="text-slate-500">Email</dt>
+            <dt className="text-zinc-500">Email</dt>
             <dd>{c.email ?? '—'}</dd>
-            <dt className="text-slate-500">Loyalty</dt>
+            <dt className="text-zinc-500">Loyalty</dt>
             <dd>{c.loyalty_points} points</dd>
           </dl>
           <h3 className="mb-1 mt-4 font-bold">Cards</h3>
-          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+          <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {q.data!.cards.map((k) => (
               <li key={k.id}>
-                <button className="flex min-h-[48px] w-full items-center justify-between gap-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800" onClick={() => (onClose(), open('details', k as Card))}>
+                <button className="flex min-h-[48px] w-full items-center justify-between gap-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800" onClick={() => (onClose(), open('details', k as Card))}>
                   <span className="font-mono font-semibold">{k.card_number}</span>
                   <StatusPill status={k.status} size="sm" />
                   <span className="tabular-nums">{formatCents(k.balance_cents)}</span>
                 </button>
               </li>
             ))}
-            {!q.data!.cards.length && <li className="py-2 text-slate-500">No cards.</li>}
+            {!q.data!.cards.length && <li className="py-2 text-zinc-500">No cards.</li>}
           </ul>
         </>
       )}

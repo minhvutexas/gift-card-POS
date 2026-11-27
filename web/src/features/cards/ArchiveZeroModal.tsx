@@ -15,7 +15,7 @@ interface ArchiveResult {
   undo_until: string | null;
 }
 
-/** 🗑 Clear Zero-Balance: preview → confirm (manager) → 30-day undo. */
+/** Clear Zero-Balance: preview → confirm (manager) → 30-day undo. */
 export function ArchiveZeroModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -83,24 +83,24 @@ export function ArchiveZeroModal({ onClose }: { onClose: () => void }) {
       {preview && (
         <>
           <div className="mb-4 grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-slate-100 p-4 text-center dark:bg-slate-800">
-              <p className="text-4xl font-extrabold">{preview.count}</p>
-              <p className="text-sm text-slate-500">cards at $0.00</p>
+            <div className="rounded-lg bg-zinc-100 p-4 text-center dark:bg-zinc-800">
+              <p className="text-4xl font-bold">{preview.count}</p>
+              <p className="text-sm text-zinc-500">cards at $0.00</p>
             </div>
-            <div className="rounded-xl bg-slate-100 p-4 text-center dark:bg-slate-800">
-              <p className="text-3xl font-extrabold tabular-nums">{formatCents(preview.face_value_total_cents)}</p>
-              <p className="text-sm text-slate-500">original face value</p>
+            <div className="rounded-lg bg-zinc-100 p-4 text-center dark:bg-zinc-800">
+              <p className="text-3xl font-bold tabular-nums">{formatCents(preview.face_value_total_cents)}</p>
+              <p className="text-sm text-zinc-500">original face value</p>
             </div>
           </div>
-          <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+          <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
             Moves closed, expired, voided and replaced cards with a $0 balance out of the main list. Nothing is deleted: history stays forever and you can <Undo2 className="inline h-4 w-4" /> restore for 30 days. Manager approval required.
           </p>
           {preview.count > 0 && (
-            <ul className="max-h-48 divide-y divide-slate-200 overflow-auto rounded-xl ring-1 ring-slate-200 dark:divide-slate-800 dark:ring-slate-800">
+            <ul className="max-h-48 divide-y divide-zinc-200 overflow-auto rounded-lg ring-1 ring-zinc-200 dark:divide-zinc-800 dark:ring-zinc-800">
               {preview.cards.map((c) => (
                 <li key={c.id} className="flex justify-between px-3 py-2 text-sm">
                   <span className="font-mono">{c.card_number}</span>
-                  <span className="text-slate-500">{c.status}</span>
+                  <span className="text-zinc-500">{c.status}</span>
                   <span className="tabular-nums">{formatCents(c.face_value_cents)}</span>
                 </li>
               ))}

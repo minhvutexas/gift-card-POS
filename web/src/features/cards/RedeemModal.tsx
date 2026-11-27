@@ -132,7 +132,7 @@ export function RedeemModal({ card: initial, onClose }: { card: Card | null; onC
         <div className="text-center" aria-live="polite">
           <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-600" aria-hidden />
           <p className="mt-2 text-lg">Remaining balance</p>
-          <p className="text-5xl font-extrabold tabular-nums">{formatCents(done.balance_cents)}</p>
+          <p className="text-5xl font-bold tabular-nums">{formatCents(done.balance_cents)}</p>
           <div className="mt-2">
             <StatusPill status={done.status} />
           </div>
@@ -200,24 +200,24 @@ export function RedeemModal({ card: initial, onClose }: { card: Card | null; onC
         )
       }
     >
-      <div className="mb-4 flex items-start justify-between gap-3 rounded-2xl bg-slate-100 p-4 dark:bg-slate-800">
+      <div className="mb-4 flex items-start justify-between gap-3 rounded-xl bg-zinc-100 p-4 dark:bg-zinc-800">
         <div className="min-w-0">
           <p className="font-mono text-xl font-bold tracking-wider">{card.card_number}</p>
-          <p className="truncate text-slate-600 dark:text-slate-300">{holderName(card.customer) || card.label || 'No holder on file'}</p>
+          <p className="truncate text-zinc-600 dark:text-zinc-300">{holderName(card.customer) || card.label || 'No holder on file'}</p>
           <div className="mt-1">
             <StatusPill status={card.status} size="sm" />
           </div>
         </div>
         <div className="text-right">
-          <p className="text-xs font-semibold uppercase text-slate-500">Balance</p>
-          <p className="text-4xl font-extrabold tabular-nums" aria-live="polite">
+          <p className="text-xs font-semibold uppercase text-zinc-500">Balance</p>
+          <p className="text-4xl font-bold tabular-nums" aria-live="polite">
             {formatCents(card.balance_cents)}
           </p>
         </div>
       </div>
 
       {offlineOffer && (
-        <div role="alert" className="mb-4 rounded-xl border-2 border-amber-500 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+        <div role="alert" className="mb-4 rounded-lg border-2 border-amber-500 bg-amber-50 p-4 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
           <p className="flex items-center gap-2 font-bold">
             <WifiOff className="h-5 w-5" /> No connection to the server
           </p>
@@ -226,7 +226,7 @@ export function RedeemModal({ card: initial, onClose }: { card: Card | null; onC
       )}
 
       {(blocked || expiredByDate) && (
-        <div role="alert" className="mb-4 flex gap-3 rounded-xl border-2 border-red-500 bg-red-50 p-4 text-red-900 dark:bg-red-950 dark:text-red-100">
+        <div role="alert" className="mb-4 flex gap-3 rounded-lg border-2 border-red-500 bg-red-50 p-4 text-red-900 dark:bg-red-950 dark:text-red-100">
           <AlertOctagon className="h-6 w-6 shrink-0" />
           <div>
             <p className="font-bold">{expiredByDate ? 'This card has expired' : `This card is ${STATUS[card.status].label.toLowerCase()}`}</p>

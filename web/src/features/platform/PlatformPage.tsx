@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Eye, EyeOff, LogOut, RefreshCw, Trash2 } from 'lucide-react';
+import { Eye, EyeOff, LogOut, RefreshCw, Store, Trash2 } from 'lucide-react';
 import { API_BASE, ApiError } from '../../lib/api';
 import { formatCents } from '../../lib/money';
 import { Button, EmptyState, Field, Modal, SkeletonRows, fmtDate, fmtDateTime, inputCls } from '../../components/ui';
@@ -85,8 +85,8 @@ function PlatformLogin({ onDone }: { onDone: () => void }) {
     }
   };
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4 dark:bg-slate-950">
-      <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-3xl bg-white p-6 shadow-xl dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-zinc-100 p-4 dark:bg-zinc-950">
+      <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <h1 className="text-xl font-bold">Platform admin</h1>
         <Field label="Platform password" htmlFor="ppw" error={err} hint="PLATFORM_ADMIN_PASSWORD in the server’s .env">
           <input id="ppw" type="password" className={inputCls} value={pw} onChange={(e) => (setPw(e.target.value), setErr(null))} autoComplete="current-password" autoFocus />
@@ -183,10 +183,10 @@ function Salons({ onLogout }: { onLogout: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
         <h1 className="text-lg font-bold">Platform admin</h1>
-        <span className="text-sm text-slate-600 dark:text-slate-300">
+        <span className="text-sm text-zinc-600 dark:text-zinc-300">
           {list.data ? `${list.data.data.length} salons · ${active} active` : ''}
         </span>
         <div className="ml-auto flex gap-2">
@@ -211,20 +211,20 @@ function Salons({ onLogout }: { onLogout: () => void }) {
         {list.isLoading ? (
           <SkeletonRows rows={5} />
         ) : list.error ? (
-          <p role="alert" className="rounded-xl bg-red-50 p-3 text-red-800 dark:bg-red-950/40 dark:text-red-200">
+          <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-800 dark:bg-red-950/40 dark:text-red-200">
             Couldn’t load salons: {(list.error as Error).message}{' '}
             <button className="font-semibold underline" onClick={() => list.refetch()}>
               Try again
             </button>
           </p>
         ) : !rows.length ? (
-          <EmptyState icon={<span aria-hidden>🏪</span>} title={filter ? 'No salon matches' : 'No salons yet'}>
+          <EmptyState icon={<Store className="h-6 w-6" />} title={filter ? 'No salon matches' : 'No salons yet'}>
             {filter ? 'Try another name or Salon ID.' : 'Salons appear here when they sign up at /signup.'}
           </EmptyState>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+          <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
             <table className="w-full min-w-[980px] text-left text-sm">
-              <thead className="border-b border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-300">
+              <thead className="border-b border-zinc-200 text-zinc-600 dark:border-zinc-800 dark:text-zinc-300">
                 <tr>
                   <th className="px-4 py-3 font-semibold">CID</th>
                   <th className="px-4 py-3 font-semibold">Salon</th>
@@ -241,12 +241,12 @@ function Salons({ onLogout }: { onLogout: () => void }) {
               </thead>
               <tbody>
                 {rows.map((s) => (
-                  <tr key={s.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
+                  <tr key={s.id} className="border-b border-zinc-100 last:border-0 dark:border-zinc-800">
                     <td className="px-4 py-3 font-mono font-semibold tabular-nums">{s.cid}</td>
                     <td className="px-4 py-3">
                       <div className="font-semibold">{s.name}</div>
-                      <div className="font-mono text-xs text-slate-600 dark:text-slate-400">{s.slug}</div>
-                      {s.owner_email && <div className="text-xs text-slate-600 dark:text-slate-400">{s.owner_email}</div>}
+                      <div className="font-mono text-xs text-zinc-600 dark:text-zinc-400">{s.slug}</div>
+                      {s.owner_email && <div className="text-xs text-zinc-600 dark:text-zinc-400">{s.owner_email}</div>}
                     </td>
                     <td className="px-4 py-3 font-mono">{s.owner_username ?? '—'}</td>
                     <td className="px-4 py-3">
@@ -313,11 +313,11 @@ function Salons({ onLogout }: { onLogout: () => void }) {
           )
         }
       >
-        {pending && confirmCopy[pending.kind].body && <p className="text-slate-700 dark:text-slate-200">{confirmCopy[pending.kind].body}</p>}
+        {pending && confirmCopy[pending.kind].body && <p className="text-zinc-700 dark:text-zinc-200">{confirmCopy[pending.kind].body}</p>}
         {pending?.kind === 'reset' && (
           <fieldset className="space-y-3">
             <legend className="sr-only">Owner sign-in</legend>
-            <p className="text-sm text-slate-600 dark:text-slate-300">
+            <p className="text-sm text-zinc-600 dark:text-zinc-300">
               CID <span className="font-mono font-semibold">{pending.salon.cid}</span> · Passwords are stored scrambled, so nobody can read the current one — you can only set a new one.
             </p>
             <Field label="Username" htmlFor="ownu" hint="The owner signs in with the CID, this username and the password." error={newUsername && !/^[A-Za-z0-9._-]{2,40}$/.test(newUsername.trim()) ? 'Use 2–40 letters, numbers, dots, dashes or underscores.' : null}>
@@ -357,10 +357,10 @@ function Salons({ onLogout }: { onLogout: () => void }) {
         )}
         {pending?.kind === 'delete' && (
           <div className="space-y-3">
-            <p className="rounded-xl bg-red-50 p-3 text-red-900 dark:bg-red-950/40 dark:text-red-200">
+            <p className="rounded-lg bg-red-50 p-3 text-red-900 dark:bg-red-950/40 dark:text-red-200">
               This permanently deletes <strong>{pending.salon.name}</strong>: {pending.salon.cards} cards ({formatCents(Math.round(Number(pending.salon.outstanding) * 100))} still on them), all customers, staff, devices, history and backups. <strong>It can’t be undone.</strong>
             </p>
-            <p className="text-sm text-slate-700 dark:text-slate-200">Just want to stop them for now? Use Suspend instead.</p>
+            <p className="text-sm text-zinc-700 dark:text-zinc-200">Just want to stop them for now? Use Suspend instead.</p>
             <Field label={<>Type <span className="font-mono">{pending.salon.slug}</span> to confirm</>} htmlFor="delconf">
               <input id="delconf" className={`${inputCls} font-mono`} value={confirmText} onChange={(e) => setConfirmText(e.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} autoFocus />
             </Field>
@@ -378,11 +378,11 @@ function Salons({ onLogout }: { onLogout: () => void }) {
           <div className="space-y-3">
             {secret.lines.map(([k, v]) => (
               <div key={k}>
-                <div className="text-sm font-semibold text-slate-600 dark:text-slate-300">{k}</div>
-                <code className="block break-all rounded-xl bg-slate-100 px-3 py-2 font-mono dark:bg-slate-800">{v}</code>
+                <div className="text-sm font-semibold text-zinc-600 dark:text-zinc-300">{k}</div>
+                <code className="block break-all rounded-lg bg-zinc-100 px-3 py-2 font-mono dark:bg-zinc-800">{v}</code>
               </div>
             ))}
-            <p className="text-sm text-slate-600 dark:text-slate-300">{secret.note}</p>
+            <p className="text-sm text-zinc-600 dark:text-zinc-300">{secret.note}</p>
           </div>
         )}
       </Modal>
@@ -400,7 +400,7 @@ function PlatformSettings() {
   });
   const on = !!q.data?.messaging;
   return (
-    <section aria-labelledby="ps-h" className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <section aria-labelledby="ps-h" className="mb-6 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
       <h2 id="ps-h" className="text-base font-bold">
         Platform settings
       </h2>
@@ -409,7 +409,7 @@ function PlatformSettings() {
           <p id="msg-label" className="font-semibold">
             Email &amp; SMS to customers
           </p>
-          <p id="msg-desc" className="text-sm text-slate-600 dark:text-slate-300">
+          <p id="msg-desc" className="text-sm text-zinc-600 dark:text-zinc-300">
             {on
               ? 'On for all salons: the “Email / SMS” button, the Messaging settings tab and automatic messages (reload thanks, low balance, expiry reminders).'
               : 'Off for all salons. The Email / SMS button and Messaging settings are hidden, and no messages are sent.'}
@@ -428,7 +428,7 @@ function PlatformSettings() {
           aria-describedby="msg-desc"
           disabled={q.isLoading || save.isPending}
           onClick={() => save.mutate(!on)}
-          className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-50 ${on ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+          className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:opacity-50 ${on ? 'bg-emerald-600' : 'bg-zinc-300 dark:bg-zinc-700'}`}
         >
           <span className={`inline-block h-6 w-6 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-7' : 'translate-x-1'}`} />
         </button>

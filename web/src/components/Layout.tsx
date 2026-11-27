@@ -12,6 +12,7 @@ import { useToast } from '../lib/toast';
 import type { CardList } from '../lib/types';
 import { useCardActions } from '../features/cards/CardActions';
 import { AnimatedMoney, Button } from './ui';
+import { Logo } from './Logo';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, perm: 'dashboard.read', end: true },
@@ -67,9 +68,9 @@ export function Layout() {
         Skip to content
       </a>
       {/* Icon sidebar */}
-      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 md:sticky md:top-0 md:h-screen md:w-24 md:flex-col md:justify-start md:gap-1 md:border-r md:border-t-0 md:py-4">
-        <div className="mb-4 hidden text-center text-3xl md:block" aria-hidden>
-          🎁
+      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 md:sticky md:top-0 md:h-screen md:w-24 md:flex-col md:justify-start md:gap-1 md:border-r md:border-t-0 md:py-4">
+        <div className="mb-4 hidden justify-center md:flex">
+          <Logo size="sm" />
         </div>
         {NAV.filter((n) => can(n.perm)).map((n) => (
           <NavLink
@@ -77,14 +78,14 @@ export function Layout() {
             to={n.to}
             end={n.end}
             className={({ isActive }) =>
-              `flex min-h-[56px] min-w-[56px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-[11px] font-semibold md:mx-2 ${isActive ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`
+              `flex min-h-[56px] min-w-[56px] flex-col items-center justify-center gap-0.5 rounded-lg px-2 text-[11px] font-medium md:mx-2 ${isActive ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white' : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:hover:text-white'}`
             }
           >
             <n.icon className="h-6 w-6" aria-hidden />
             {n.label}
           </NavLink>
         ))}
-        <a href={me?.business ? `/k/${me.business.slug}` : '/kiosk'} target="_blank" rel="noopener" className="flex min-h-[56px] min-w-[56px] flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 md:mx-2">
+        <a href={me?.business ? `/k/${me.business.slug}` : '/kiosk'} target="_blank" rel="noopener" className="flex min-h-[56px] min-w-[56px] flex-col items-center justify-center gap-0.5 rounded-lg px-2 text-[11px] font-medium text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:hover:text-white md:mx-2">
           <ExternalLink className="h-6 w-6" aria-hidden />
           Kiosk ↗
         </a>
@@ -92,25 +93,25 @@ export function Layout() {
 
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
         {/* Top bar */}
-        <header className="sticky top-0 z-20 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 bg-white/90 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
-          <div className="flex items-center gap-3">
-            <div>
-              <p className="text-sm font-semibold leading-tight">
+        <header className="sticky top-0 z-20 flex items-center gap-x-3 border-b border-zinc-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900 sm:px-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold leading-tight">
                 {me?.settings.general.business_name}
-                {me?.business?.cid && <span className="ml-2 font-mono text-xs font-normal text-slate-500 dark:text-slate-400">CID {me.business.cid}</span>}
+                {me?.business?.cid && <span className="ml-2 hidden font-mono text-xs font-normal text-zinc-500 dark:text-zinc-400 sm:inline">CID {me.business.cid}</span>}
               </p>
-              <p className="text-xs leading-tight text-slate-500">
+              <p className="hidden text-xs leading-tight text-zinc-500 sm:block">
                 {now.toLocaleDateString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric' })} ·{' '}
                 <time className="tabular-nums" dateTime={now.toISOString()}>
                   {now.toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', second: '2-digit' })}
                 </time>
               </p>
             </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-semibold" title={live === 'live' ? 'Real-time updates on' : 'Reconnecting…'}>
+            <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium" title={live === 'live' ? 'Real-time updates on' : 'Reconnecting…'}>
               {online ? (
                 <>
                   <span className={`h-2.5 w-2.5 rounded-full ${live === 'live' ? 'bg-emerald-500 animate-pulseRing' : 'bg-amber-500'}`} aria-hidden />
-                  <span className={live === 'live' ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700'}>{live === 'live' ? 'Live' : 'Connecting'}</span>
+                  <span className={`hidden sm:inline ${live === 'live' ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700'}`}>{live === 'live' ? 'Live' : 'Connecting'}</span>
                 </>
               ) : (
                 <span className="flex items-center gap-1 text-red-700 dark:text-red-400">
@@ -120,20 +121,20 @@ export function Layout() {
             </span>
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
             <div className="hidden text-right sm:block" aria-live="polite">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Outstanding liability</p>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Outstanding liability</p>
               <p className="text-lg font-bold leading-tight">{outstanding.data !== undefined ? <AnimatedMoney cents={outstanding.data} /> : '—'}</p>
             </div>
             <Bell2 />
-            <button onClick={toggleTheme} className="h-11 w-11 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Toggle dark mode">
+            <button onClick={toggleTheme} className="h-11 w-11 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="Toggle dark mode">
               <Sun className="mx-auto hidden h-5 w-5 dark:block" />
               <Moon className="mx-auto h-5 w-5 dark:hidden" />
             </button>
             <UserMenu name={me?.user.name ?? ''} role={me?.user.role ?? ''} onLock={lock} onLogout={logout} />
             {can('cards.issue') && (
-              <Button onClick={() => open('issue')} className="shadow-md" aria-keyshortcuts="Alt+N">
-                <Plus className="h-5 w-5" /> New Card
+              <Button onClick={() => open('issue')} aria-keyshortcuts="Alt+N" aria-label="New card" className="px-3 sm:px-4">
+                <Plus className="h-5 w-5" /> <span className="hidden sm:inline">New Card</span>
               </Button>
             )}
           </div>
@@ -171,22 +172,22 @@ function UserMenu({ name, role, onLock, onLogout }: { name: string; role: string
   }, [open]);
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} className="flex h-11 items-center gap-2 rounded-lg px-2 hover:bg-slate-100 dark:hover:bg-slate-800">
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white" aria-hidden>
+      <button onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} className="flex h-11 items-center gap-2 rounded-lg px-2 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-200 text-sm font-semibold text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100" aria-hidden>
           {name.slice(0, 1)}
         </span>
         <span className="hidden text-left text-sm leading-tight lg:block">
           {name}
           <br />
-          <span className="text-xs text-slate-500">{role}</span>
+          <span className="text-xs text-zinc-500">{role}</span>
         </span>
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 z-30 mt-1 w-48 rounded-xl bg-white py-1 shadow-xl ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
-          <button role="menuitem" onClick={() => (setOpen(false), onLock())} className="flex min-h-[44px] w-full items-center gap-2 px-4 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
+        <div role="menu" className="absolute right-0 z-30 mt-1 w-48 rounded-lg bg-white py-1 shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-700">
+          <button role="menuitem" onClick={() => (setOpen(false), onLock())} className="flex min-h-[44px] w-full items-center gap-2 px-4 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
             <Lock className="h-4 w-4" /> Lock / switch user
           </button>
-          <button role="menuitem" onClick={() => (setOpen(false), onLogout())} className="flex min-h-[44px] w-full items-center gap-2 px-4 text-sm text-red-700 hover:bg-slate-100 dark:hover:bg-slate-800">
+          <button role="menuitem" onClick={() => (setOpen(false), onLogout())} className="flex min-h-[44px] w-full items-center gap-2 px-4 text-sm text-red-700 hover:bg-zinc-100 dark:hover:bg-zinc-800">
             <LogOut className="h-4 w-4" /> Log out
           </button>
         </div>
@@ -195,7 +196,7 @@ function UserMenu({ name, role, onLock, onLogout }: { name: string; role: string
   );
 }
 
-/** 🔔 Alerts: low balance / expiring / blocked attempts / failed prints. */
+/** Alerts: low balance / expiring / blocked attempts / failed prints. */
 function Bell2() {
   const { can } = useSession();
   const [open, setOpen] = useState(false);
@@ -230,7 +231,7 @@ function Bell2() {
             /* ignore */
           }
         }}
-        className="relative h-11 w-11 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+        className="relative h-11 w-11 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
         aria-label={`Notifications${unseen ? `, ${unseen} new` : ''}`}
         aria-expanded={open}
       >
@@ -238,23 +239,23 @@ function Bell2() {
         {unseen > 0 && <span className="absolute right-1 top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-600 px-1 text-xs font-bold text-white">{unseen}</span>}
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-1 w-80 max-w-[90vw] rounded-xl bg-white p-2 shadow-xl ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">
-          <p className="px-2 py-1 text-xs font-bold uppercase text-slate-500">Alerts (24h)</p>
-          {alerts.length === 0 && <p className="px-2 py-2 text-sm text-slate-500">All clear ✓</p>}
+        <div className="absolute right-0 z-30 mt-1 w-80 max-w-[90vw] rounded-lg bg-white p-2 shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-700">
+          <p className="px-2 py-1 text-xs font-bold uppercase text-zinc-500">Alerts (24h)</p>
+          {alerts.length === 0 && <p className="px-2 py-2 text-sm text-zinc-500">All clear</p>}
           {alerts.slice(0, 8).map((a) => (
-            <button key={a.id} onClick={() => a.card_id && openCard('details', { id: a.card_id } as any)} className="block min-h-[44px] w-full rounded-lg px-2 py-1 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
+            <button key={a.id} onClick={() => a.card_id && openCard('details', { id: a.card_id } as any)} className="block min-h-[44px] w-full rounded-lg px-2 py-1 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
               <span className="font-semibold">{actionLabel(a.action)}</span> {a.card_number && <span className="font-mono">#{a.card_number}</span>}
               <br />
-              <span className="text-xs text-slate-500">{a.message}</span>
+              <span className="text-xs text-zinc-500">{a.message}</span>
             </button>
           ))}
-          <p className="mt-2 px-2 py-1 text-xs font-bold uppercase text-slate-500">Expiring soon</p>
-          {expiring.length === 0 && <p className="px-2 py-2 text-sm text-slate-500">None in the next 30 days</p>}
+          <p className="mt-2 px-2 py-1 text-xs font-bold uppercase text-zinc-500">Expiring soon</p>
+          {expiring.length === 0 && <p className="px-2 py-2 text-sm text-zinc-500">None in the next 30 days</p>}
           {expiring.slice(0, 5).map((e) => (
-            <button key={e.id} onClick={() => openCard('details', { id: e.id } as any)} className="flex min-h-[44px] w-full items-center justify-between rounded-lg px-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
+            <button key={e.id} onClick={() => openCard('details', { id: e.id } as any)} className="flex min-h-[44px] w-full items-center justify-between rounded-lg px-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
               <span className="font-mono">{e.card_number}</span>
               <span>{formatCents(e.balance_cents)}</span>
-              <span className={e.days_left <= 7 ? 'font-bold text-red-600' : 'text-slate-500'}>{e.days_left}d</span>
+              <span className={e.days_left <= 7 ? 'font-bold text-red-600' : 'text-zinc-500'}>{e.days_left}d</span>
             </button>
           ))}
         </div>

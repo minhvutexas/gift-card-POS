@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Delete } from 'lucide-react';
+import { Check, Delete } from 'lucide-react';
 import { formatCents, keypadAppend } from '../lib/money';
 
 /**
@@ -39,10 +39,10 @@ export function AmountKeypad({ value, onChange, onEnter, max, label = 'Amount', 
         else return;
         e.preventDefault();
       }}
-      className="rounded-2xl outline-none focus-visible:ring-4 focus-visible:ring-brand-500/40"
+      className="rounded-xl outline-none focus-visible:ring-4 focus-visible:ring-brand-500/40"
     >
-      <div className={`mb-3 rounded-2xl px-4 py-3 text-right ${error ? 'bg-red-50 ring-2 ring-red-500 dark:bg-red-950' : 'bg-slate-100 dark:bg-slate-800'}`}>
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
+      <div className={`mb-3 rounded-xl px-4 py-3 text-right ${error ? 'bg-red-50 ring-2 ring-red-500 dark:bg-red-950' : 'bg-zinc-100 dark:bg-zinc-800'}`}>
+        <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</div>
         <output aria-live="polite" className="block font-mono text-5xl font-bold tabular-nums">
           {formatCents(value)}
         </output>
@@ -55,7 +55,7 @@ export function AmountKeypad({ value, onChange, onEnter, max, label = 'Amount', 
       {presets && presets.length > 0 && (
         <div className="mb-3 grid grid-cols-4 gap-2">
           {presets.map((p) => (
-            <button key={p} type="button" onClick={() => onChange(p)} className={`min-h-[52px] rounded-xl text-lg font-bold ring-1 ring-inset transition ${value === p ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white ring-slate-300 hover:bg-brand-50 dark:bg-slate-800 dark:ring-slate-600'}`}>
+            <button key={p} type="button" onClick={() => onChange(p)} className={`min-h-[52px] rounded-lg text-lg font-bold ring-1 ring-inset transition ${value === p ? 'bg-zinc-900 text-white ring-zinc-900 dark:bg-white dark:text-zinc-900 dark:ring-white' : 'bg-white ring-zinc-300 hover:bg-brand-50 dark:bg-zinc-800 dark:ring-zinc-600'}`}>
               {formatCents(p).replace('.00', '')}
             </button>
           ))}
@@ -69,7 +69,7 @@ export function AmountKeypad({ value, onChange, onEnter, max, label = 'Amount', 
             tabIndex={-1}
             onClick={() => press(k)}
             aria-label={k === 'back' ? 'Backspace' : k}
-            className="flex min-h-[60px] items-center justify-center rounded-xl bg-white text-2xl font-semibold shadow-sm ring-1 ring-inset ring-slate-200 active:scale-95 active:bg-slate-100 dark:bg-slate-800 dark:ring-slate-700 dark:active:bg-slate-700"
+            className="flex min-h-[60px] items-center justify-center rounded-lg bg-white text-2xl font-semibold shadow-sm ring-1 ring-inset ring-zinc-200 active:scale-95 active:bg-zinc-100 dark:bg-zinc-800 dark:ring-zinc-700 dark:active:bg-zinc-700"
           >
             {k === 'back' ? <Delete className="h-7 w-7" /> : k}
           </button>
@@ -110,7 +110,7 @@ export function PinPad({ value, onChange, onSubmit, length = 4, error, disabled 
     >
       <div className="mb-4 flex justify-center gap-3" aria-live="polite" aria-label={`${value.length} digits entered`}>
         {Array.from({ length: Math.max(length, value.length) }, (_, i) => (
-          <span key={i} className={`h-4 w-4 rounded-full ${i < value.length ? 'bg-brand-600' : 'bg-slate-300 dark:bg-slate-700'} ${error ? 'animate-pulse bg-red-500' : ''}`} />
+          <span key={i} className={`h-4 w-4 rounded-full ${i < value.length ? 'bg-zinc-900 dark:bg-white' : 'bg-zinc-300 dark:bg-zinc-700'} ${error ? 'animate-pulse bg-red-500' : ''}`} />
         ))}
       </div>
       {error && (
@@ -128,10 +128,10 @@ export function PinPad({ value, onChange, onSubmit, length = 4, error, disabled 
             onClick={() => press(k)}
             aria-label={k === 'back' ? 'Backspace' : k === 'ok' ? 'Enter' : k}
             className={`flex aspect-square min-h-[64px] items-center justify-center rounded-full text-2xl font-semibold ring-1 ring-inset active:scale-95 ${
-              k === 'ok' ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white ring-slate-200 dark:bg-slate-800 dark:ring-slate-700'
+              k === 'ok' ? 'bg-zinc-900 text-white ring-zinc-900 dark:bg-white dark:text-zinc-900 dark:ring-white' : 'bg-white ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-700'
             }`}
           >
-            {k === 'back' ? <Delete className="h-7 w-7" /> : k === 'ok' ? '✓' : k}
+            {k === 'back' ? <Delete className="h-7 w-7" /> : k === 'ok' ? <Check className="h-7 w-7" /> : k}
           </button>
         ))}
       </div>

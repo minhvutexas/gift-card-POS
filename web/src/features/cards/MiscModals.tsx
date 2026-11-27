@@ -63,7 +63,7 @@ export function ReplaceModal({ card, onClose }: { card: Card; onClose: () => voi
         </>
       }
     >
-      <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+      <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
         The old card <strong className="font-mono">{card.card_number}</strong> becomes “Replaced” and can never be used again. Holder, label, expiry and PIN carry over; history links both cards.
       </p>
       <Field label="New card number (scan, or blank for auto)" htmlFor="rp-num" error={s.err}>
@@ -111,7 +111,7 @@ export function SendModal({ card, onClose }: { card: Card; onClose: () => void }
               setChannel(c);
               setTo(c === 'EMAIL' ? (card.customer?.email ?? '') : (card.customer?.phone ?? ''));
             }}
-            className={`min-h-[48px] rounded-xl font-semibold ring-2 ring-inset ${channel === c ? 'bg-brand-600 text-white ring-brand-600' : 'ring-slate-300 dark:ring-slate-600'}`}
+            className={`min-h-[48px] rounded-lg font-semibold ring-2 ring-inset ${channel === c ? 'bg-zinc-900 text-white ring-zinc-900 dark:bg-white dark:text-zinc-900 dark:ring-white' : 'ring-zinc-300 dark:ring-zinc-600'}`}
           >
             {c === 'EMAIL' ? 'Email' : 'Text message'}
           </button>
@@ -157,7 +157,7 @@ export function TagsModal({ card, onClose }: { card: Card; onClose: () => void }
     <Modal
       open
       onClose={onClose}
-      title="🏷 Label & tags"
+      title="Label & tags"
       size="sm"
       footer={
         <>
@@ -185,7 +185,7 @@ export function TagsModal({ card, onClose }: { card: Card; onClose: () => void }
         <legend className="mb-1 text-sm font-semibold">Colour</legend>
         <div className="flex flex-wrap gap-2">
           {['', ...Object.keys(TAG_COLORS)].map((c) => (
-            <button key={c || 'none'} onClick={() => setColor(c)} aria-pressed={color === c} aria-label={c || 'No colour'} className={`h-11 w-11 rounded-full ring-2 ring-offset-2 dark:ring-offset-slate-900 ${color === c ? 'ring-slate-900 dark:ring-white' : 'ring-transparent'} ${c ? TAG_COLORS[c] : 'bg-white ring-slate-300'}`} />
+            <button key={c || 'none'} onClick={() => setColor(c)} aria-pressed={color === c} aria-label={c || 'No colour'} className={`h-11 w-11 rounded-full ring-2 ring-offset-2 dark:ring-offset-zinc-900 ${color === c ? 'ring-zinc-900 dark:ring-white' : 'ring-transparent'} ${c ? TAG_COLORS[c] : 'bg-white ring-zinc-300'}`} />
           ))}
         </div>
       </fieldset>
@@ -193,7 +193,7 @@ export function TagsModal({ card, onClose }: { card: Card; onClose: () => void }
         <legend className="mb-1 text-sm font-semibold">Tags</legend>
         <div className="flex flex-wrap gap-2">
           {tags.data?.data.map((t) => (
-            <label key={t.id} className={`flex min-h-[44px] cursor-pointer items-center gap-2 rounded-xl px-3 ring-1 ring-inset ${ids.includes(t.id) ? 'bg-brand-50 ring-brand-500 dark:bg-brand-900/30' : 'ring-slate-300 dark:ring-slate-600'}`}>
+            <label key={t.id} className={`flex min-h-[44px] cursor-pointer items-center gap-2 rounded-lg px-3 ring-1 ring-inset ${ids.includes(t.id) ? 'bg-zinc-50 ring-zinc-900 dark:bg-zinc-800 dark:ring-white' : 'ring-zinc-300 dark:ring-zinc-600'}`}>
               <input type="checkbox" className="h-5 w-5" checked={ids.includes(t.id)} onChange={(e) => setIds((x) => (e.target.checked ? [...x, t.id] : x.filter((y) => y !== t.id)))} />
               <TagChip tag={t} />
             </label>
@@ -231,7 +231,7 @@ export function NoteModal({ card, onClose }: { card: Card; onClose: () => void }
         </>
       }
     >
-      {card.notes && <pre className="mb-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-100 p-3 text-sm dark:bg-slate-800">{card.notes}</pre>}
+      {card.notes && <pre className="mb-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-zinc-100 p-3 text-sm dark:bg-zinc-800">{card.notes}</pre>}
       <Field label="Note (timestamped with your name)" htmlFor="note" error={s.err}>
         <textarea id="note" autoFocus rows={3} className={`${inputCls} py-2`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />
       </Field>
@@ -271,10 +271,10 @@ export function PinModal({ card, onClose }: { card: Card; onClose: () => void })
         </>
       }
     >
-      <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+      <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
         The customer uses this PIN with card <strong className="font-mono">{card.card_number}</strong> to check their balance at the kiosk. Saving also unlocks the card if it was locked after wrong guesses.
       </p>
-      <label className="mb-3 flex min-h-[48px] items-center gap-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+      <label className="mb-3 flex min-h-[48px] items-center gap-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
         <input type="checkbox" className="h-5 w-5" checked={verified} onChange={(e) => setVerified(e.target.checked)} />
         I checked the customer’s ID or that they hold the physical card / receipt.
       </label>
@@ -315,7 +315,7 @@ export function ExpiryModal({ card, onClose }: { card: Card; onClose: () => void
         </>
       }
     >
-      <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">Check local gift-card law before setting an expiry (many US states require 5+ years or none).</p>
+      <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-300">Check local gift-card law before setting an expiry (many US states require 5+ years or none).</p>
       <Field label="Expires on" htmlFor="exp" error={s.err}>
         <input id="exp" type="date" className={inputCls} min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)} value={date} onChange={(e) => setDate(e.target.value)} />
       </Field>

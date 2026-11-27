@@ -27,7 +27,7 @@ export function DataPanel() {
             </Button>
           ))}
         </div>
-        <p className="mt-2 text-sm text-slate-500">Exports never include PIN/password hashes or terminal keys. Every export is logged.</p>
+        <p className="mt-2 text-sm text-zinc-500">Exports never include PIN/password hashes or terminal keys. Every export is logged.</p>
       </section>
 
       {can('data.backup') && (
@@ -48,14 +48,14 @@ export function DataPanel() {
           {!backups.data ? (
             <SkeletonRows rows={2} />
           ) : backups.data.data.length === 0 ? (
-            <p className="text-slate-500">No backups yet.</p>
+            <p className="text-zinc-500">No backups yet.</p>
           ) : (
-            <ul className="divide-y divide-slate-100 rounded-xl ring-1 ring-slate-200 dark:divide-slate-800 dark:ring-slate-700">
+            <ul className="divide-y divide-zinc-100 rounded-lg ring-1 ring-zinc-200 dark:divide-zinc-800 dark:ring-zinc-700">
               {backups.data.data.map((b) => (
                 <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
                   <span>
                     <strong>{fmtDateTime(b.created_at)}</strong> · {bytes(b.size_bytes)} · {b.created_by ?? 'system'}
-                    <span className="block font-mono text-xs text-slate-500">sha256 {b.sha256.slice(0, 16)}…</span>
+                    <span className="block font-mono text-xs text-zinc-500">sha256 {b.sha256.slice(0, 16)}…</span>
                   </span>
                   <Button size="sm" variant="secondary" onClick={() => download(`/data/backups/${b.id}/download`, b.filename)}>
                     Download
@@ -64,7 +64,7 @@ export function DataPanel() {
               ))}
             </ul>
           )}
-          <div className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          <div className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
             <strong>Restore:</strong> for safety, restores run on the server into a fresh database:
             <code className="mt-1 block">npm run db:restore -- backups/&lt;file&gt;.json &lt;sha256&gt;</code>
             See README › “Restore a backup”. Backups contain PIN hashes — store them encrypted.
@@ -74,7 +74,7 @@ export function DataPanel() {
 
       <section>
         <h2 className="mb-1 text-lg font-bold">Privacy (GDPR)</h2>
-        <p className="text-sm text-slate-600 dark:text-slate-300">To erase a holder’s personal data, open Customers → choose the person → “GDPR erase”. Balances and the money ledger are retained as required for accounting.</p>
+        <p className="text-sm text-zinc-600 dark:text-zinc-300">To erase a holder’s personal data, open Customers → choose the person → “GDPR erase”. Balances and the money ledger are retained as required for accounting.</p>
       </section>
     </div>
   );
@@ -101,7 +101,7 @@ export function AboutPanel() {
     <dl className="grid max-w-2xl grid-cols-[auto_1fr] gap-x-6 gap-y-2">
       {rows.map(([k, v]) => (
         <div key={k} className="contents">
-          <dt className="flex items-center gap-2 text-slate-500">
+          <dt className="flex items-center gap-2 text-zinc-500">
             {k === 'Database' && <Database className="h-4 w-4" />}
             {k}
           </dt>

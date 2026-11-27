@@ -53,7 +53,7 @@ export function TerminalPanel() {
   return (
     <div className="space-y-8">
       <section>
-        <p className="mb-3 rounded-xl bg-slate-100 p-3 text-sm dark:bg-slate-800">
+        <p className="mb-3 rounded-lg bg-zinc-100 p-3 text-sm dark:bg-zinc-800">
           This device: <strong>{me?.terminal ? `${me.terminal.code} — ${me.terminal.name}` : 'not paired'}</strong>
           {store.terminalKey && (
             <Button
@@ -80,12 +80,12 @@ export function TerminalPanel() {
         {!q.data ? (
           <SkeletonRows rows={2} />
         ) : (
-          <ul className="divide-y divide-slate-100 rounded-xl ring-1 ring-slate-200 dark:divide-slate-800 dark:ring-slate-700">
+          <ul className="divide-y divide-zinc-100 rounded-lg ring-1 ring-zinc-200 dark:divide-zinc-800 dark:ring-zinc-700">
             {q.data.data.map((t) => (
               <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                 <span>
-                  <strong className="font-mono">{t.code}</strong> · {t.name} <span className="text-sm text-slate-500">({t.kind})</span>
-                  <span className="block text-xs text-slate-500">
+                  <strong className="font-mono">{t.code}</strong> · {t.name} <span className="text-sm text-zinc-500">({t.kind})</span>
+                  <span className="block text-xs text-zinc-500">
                     {t.active ? 'Active' : 'Disabled'} · last seen {fmtDateTime(t.last_seen_at)}
                   </span>
                 </span>
@@ -176,7 +176,7 @@ export function TerminalPanel() {
         <Modal open onClose={() => setNewKey(null)} title={`Key for ${newKey.code}`} size="sm" footer={<Button onClick={() => setNewKey(null)}>I’ve saved it</Button>}>
           <p className="mb-2 text-sm">Shown only once. Enter it on the device under “Pair device”.</p>
           <div className="flex gap-2">
-            <code className="flex-1 break-all rounded-lg bg-slate-100 p-3 dark:bg-slate-800">{newKey.key}</code>
+            <code className="flex-1 break-all rounded-lg bg-zinc-100 p-3 dark:bg-zinc-800">{newKey.key}</code>
             <Button variant="secondary" aria-label="Copy key" onClick={() => navigator.clipboard?.writeText(newKey.key).then(() => toast.push({ kind: 'success', title: 'Copied' }))}>
               <Copy className="h-4 w-4" />
             </Button>

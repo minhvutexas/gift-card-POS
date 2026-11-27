@@ -23,13 +23,13 @@ interface Summary {
 
 function Tile({ label, value, sub, icon: Icon }: { label: string; value: React.ReactNode; sub?: React.ReactNode; icon: typeof Wallet }) {
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-      <div className="flex items-center justify-between text-sm font-semibold text-slate-500">
+    <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
+      <div className="flex items-center justify-between text-sm font-semibold text-zinc-500">
         {label}
         <Icon className="h-5 w-5" aria-hidden />
       </div>
-      <div className="mt-1 text-3xl font-extrabold tabular-nums">{value}</div>
-      {sub && <div className="mt-0.5 text-sm text-slate-500">{sub}</div>}
+      <div className="mt-1 text-3xl font-bold tabular-nums">{value}</div>
+      {sub && <div className="mt-0.5 text-sm text-zinc-500">{sub}</div>}
     </div>
   );
 }
@@ -46,9 +46,9 @@ export function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Good {now.getHours() < 12 ? 'morning' : now.getHours() < 17 ? 'afternoon' : 'evening'}, {me?.user.name}</h1>
-          <p className="text-slate-500">
-            <time className="text-4xl font-extrabold tabular-nums text-slate-900 dark:text-white">{now.toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' })}</time>{' '}
+          <h1 className="text-2xl font-semibold tracking-tight">Good {now.getHours() < 12 ? 'morning' : now.getHours() < 17 ? 'afternoon' : 'evening'}, {me?.user.name}</h1>
+          <p className="text-zinc-500">
+            <time className="text-3xl font-semibold tabular-nums text-zinc-900 dark:text-white">{now.toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' })}</time>{' '}
             {now.toLocaleDateString('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
@@ -82,25 +82,25 @@ export function DashboardPage() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-3">
-            <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 lg:col-span-2">
+            <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800 lg:col-span-2">
               <SalesChart series={d.series} />
             </section>
 
-            <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800" aria-labelledby="alerts-h">
+            <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800" aria-labelledby="alerts-h">
               <h2 id="alerts-h" className="mb-2 flex items-center gap-2 font-bold">
                 <AlertTriangle className="h-5 w-5 text-amber-600" aria-hidden /> Alerts (24h)
               </h2>
               {d.alerts.length === 0 ? (
-                <p className="flex items-center gap-2 py-6 text-slate-500">
+                <p className="flex items-center gap-2 py-6 text-zinc-500">
                   <CheckCircle2 className="h-5 w-5 text-emerald-600" /> No problems in the last 24 hours.
                 </p>
               ) : (
                 <ul className="max-h-72 space-y-1 overflow-auto">
                   {d.alerts.map((a) => (
                     <li key={a.id}>
-                      <button onClick={() => a.card_id && open('details', { id: a.card_id } as Card)} className="w-full rounded-lg px-2 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
+                      <button onClick={() => a.card_id && open('details', { id: a.card_id } as Card)} className="w-full rounded-lg px-2 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
                         <span className="font-semibold">{actionLabel(a.action)}</span> {a.card_number && <span className="font-mono">#{a.card_number}</span>}
-                        <span className="block text-xs text-slate-500">
+                        <span className="block text-xs text-zinc-500">
                           {fmtDateTime(a.created_at, tz)} · {a.actor_name ?? 'system'} · {a.message}
                         </span>
                       </button>
@@ -112,21 +112,21 @@ export function DashboardPage() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800" aria-labelledby="exp-h">
+            <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800" aria-labelledby="exp-h">
               <h2 id="exp-h" className="mb-2 flex items-center gap-2 font-bold">
                 <CalendarClock className="h-5 w-5" aria-hidden /> Expiring in the next 30 days
               </h2>
               {d.expiring_soon.length === 0 ? (
-                <p className="py-6 text-slate-500">Nothing expiring soon.</p>
+                <p className="py-6 text-zinc-500">Nothing expiring soon.</p>
               ) : (
-                <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
                   {d.expiring_soon.map((e) => (
                     <li key={e.id}>
-                      <button onClick={() => open('details', { id: e.id } as Card)} className="flex min-h-[48px] w-full items-center justify-between gap-2 px-1 text-left hover:bg-slate-50 dark:hover:bg-slate-800">
+                      <button onClick={() => open('details', { id: e.id } as Card)} className="flex min-h-[48px] w-full items-center justify-between gap-2 px-1 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800">
                         <span className="font-mono font-semibold">{e.card_number}</span>
                         <StatusPill status={e.status} size="sm" />
                         <span className="tabular-nums">{formatCents(e.balance_cents)}</span>
-                        <span className={`text-sm ${e.days_left <= 7 ? 'font-bold text-red-700 dark:text-red-400' : 'text-slate-500'}`}>
+                        <span className={`text-sm ${e.days_left <= 7 ? 'font-bold text-red-700 dark:text-red-400' : 'text-zinc-500'}`}>
                           {fmtDate(e.expires_at, tz)} ({e.days_left}d)
                         </span>
                       </button>
@@ -135,16 +135,16 @@ export function DashboardPage() {
                 </ul>
               )}
             </section>
-            <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800" aria-labelledby="mix-h">
+            <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800" aria-labelledby="mix-h">
               <h2 id="mix-h" className="mb-3 font-bold">Card status mix</h2>
               <ul className="flex flex-wrap gap-2">
                 {Object.entries(d.status_counts).map(([s, n]) => (
-                  <li key={s} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-800">
+                  <li key={s} className="flex items-center gap-2 rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-800">
                     <StatusPill status={s as any} size="sm" /> <span className="font-bold tabular-nums">{n}</span>
                   </li>
                 ))}
               </ul>
-              <p className="mt-4 text-sm text-slate-500">Breakage recognized (expired balances), last 30 days: <strong>{formatCents(d.breakage_30d_cents)}</strong></p>
+              <p className="mt-4 text-sm text-zinc-500">Breakage recognized (expired balances), last 30 days: <strong>{formatCents(d.breakage_30d_cents)}</strong></p>
             </section>
           </div>
         </>
@@ -169,7 +169,7 @@ function SalesChart({ series }: { series: Summary['series'] }) {
     <div>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-bold">Last 14 days — loaded vs redeemed</h2>
-        <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-300">
+        <div className="flex items-center gap-4 text-sm text-zinc-600 dark:text-zinc-300">
           <span className="flex items-center gap-1.5">
             <span className="h-3 w-3 rounded-sm bg-[#2a78d6] dark:bg-[#3987e5]" aria-hidden /> Loaded (sales + reloads)
           </span>
@@ -183,7 +183,7 @@ function SalesChart({ series }: { series: Summary['series'] }) {
       </div>
       {asTable ? (
         <table className="w-full text-sm">
-          <thead className="text-left text-xs uppercase text-slate-500">
+          <thead className="text-left text-xs uppercase text-zinc-500">
             <tr>
               <th>Day</th>
               <th className="text-right">Loaded</th>
@@ -192,7 +192,7 @@ function SalesChart({ series }: { series: Summary['series'] }) {
           </thead>
           <tbody>
             {series.map((s) => (
-              <tr key={s.day} className="border-t border-slate-100 dark:border-slate-800">
+              <tr key={s.day} className="border-t border-zinc-100 dark:border-zinc-800">
                 <td className="py-1">{label(s.day)}</td>
                 <td className="text-right tabular-nums">{formatCents(s.sold_cents)}</td>
                 <td className="text-right tabular-nums">{formatCents(s.redeemed_cents)}</td>
@@ -203,17 +203,17 @@ function SalesChart({ series }: { series: Summary['series'] }) {
       ) : (
         <div className="relative">
           <svg viewBox={`0 0 ${W} ${H + 20}`} className="w-full" role="img" aria-label="Bar chart of value loaded and redeemed per day for the last 14 days. Use the Table button for exact values.">
-            <line x1="0" x2={W} y1={H} y2={H} className="stroke-slate-300 dark:stroke-slate-700" strokeWidth="1" />
+            <line x1="0" x2={W} y1={H} y2={H} className="stroke-zinc-300 dark:stroke-zinc-700" strokeWidth="1" />
             {series.map((s, i) => {
               const x = i * slot + (slot - (bw * 2 + 2)) / 2;
               return (
                 <g key={s.day} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
                   <rect x={i * slot} y={0} width={slot} height={H + 20} fill="transparent" />
-                  {hover === i && <rect x={i * slot} y={0} width={slot} height={H} className="fill-slate-100 dark:fill-slate-800" />}
+                  {hover === i && <rect x={i * slot} y={0} width={slot} height={H} className="fill-zinc-100 dark:fill-zinc-800" />}
                   <path d={bar(x, y(s.sold_cents), bw, H)} className="fill-[#2a78d6] dark:fill-[#3987e5]" />
                   <path d={bar(x + bw + 2, y(s.redeemed_cents), bw, H)} className="fill-[#eb6834] dark:fill-[#d95926]" />
                   {(i % 2 === 0 || i === series.length - 1) && (
-                    <text x={i * slot + slot / 2} y={H + 14} textAnchor="middle" className="fill-slate-500 text-[10px]">
+                    <text x={i * slot + slot / 2} y={H + 14} textAnchor="middle" className="fill-zinc-500 text-[10px]">
                       {label(s.day)}
                     </text>
                   )}
@@ -222,7 +222,7 @@ function SalesChart({ series }: { series: Summary['series'] }) {
             })}
           </svg>
           {hover !== null && (
-            <div className="pointer-events-none absolute top-0 rounded-lg bg-slate-900 px-3 py-2 text-sm text-white shadow-lg dark:bg-white dark:text-slate-900" style={{ left: `${Math.min(75, (hover / series.length) * 100)}%` }}>
+            <div className="pointer-events-none absolute top-0 rounded-lg bg-zinc-900 px-3 py-2 text-sm text-white shadow-sm dark:bg-white dark:text-zinc-900" style={{ left: `${Math.min(75, (hover / series.length) * 100)}%` }}>
               <p className="font-semibold">{label(series[hover].day)}</p>
               <p>Loaded {formatCents(series[hover].sold_cents)}</p>
               <p>Redeemed {formatCents(series[hover].redeemed_cents)}</p>

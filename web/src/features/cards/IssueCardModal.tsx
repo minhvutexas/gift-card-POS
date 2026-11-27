@@ -78,7 +78,7 @@ export function IssueCardModal({ onClose, initialNumber = '' }: { onClose: () =>
         <div className="py-2 text-center" aria-live="polite">
           <CheckCircle2 className="mx-auto h-16 w-16 text-emerald-600" aria-hidden />
           <p className="mt-3 font-mono text-3xl font-bold tracking-wider">{done.card.card_number}</p>
-          <p className="mt-1 text-4xl font-extrabold tabular-nums">{formatCents(done.balance_cents)}</p>
+          <p className="mt-1 text-4xl font-bold tabular-nums">{formatCents(done.balance_cents)}</p>
           <div className="mt-2">
             <StatusPill status={done.status} />
           </div>
@@ -154,7 +154,7 @@ export function IssueCardModal({ onClose, initialNumber = '' }: { onClose: () =>
 
         <AmountKeypad value={amount} onChange={setAmount} presets={PRESETS} label="Load amount" error={errors.amount} onEnter={submit} />
 
-        <button type="button" onClick={() => setMore((m) => !m)} aria-expanded={more} className="flex min-h-[44px] w-full items-center justify-between rounded-xl px-2 font-semibold text-brand-700 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-slate-800">
+        <button type="button" onClick={() => setMore((m) => !m)} aria-expanded={more} className="flex min-h-[44px] w-full items-center justify-between rounded-lg px-2 font-semibold text-brand-700 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-zinc-800">
           Holder, label, expiry & PIN (optional)
           <ChevronDown className={`h-5 w-5 transition ${more ? 'rotate-180' : ''}`} />
         </button>
@@ -172,7 +172,7 @@ export function IssueCardModal({ onClose, initialNumber = '' }: { onClose: () =>
             <Field label="Email" htmlFor="i-em" error={errors.email}>
               <input id="i-em" className={inputCls} type="email" inputMode="email" value={cust.email} onChange={(e) => setCust({ ...cust, email: e.target.value })} />
             </Field>
-            <Field label="🏷 Label" htmlFor="i-lb" hint="e.g. “Mom’s birthday”">
+            <Field label="Label" htmlFor="i-lb" hint="e.g. “Mom’s birthday”">
               <input id="i-lb" className={inputCls} maxLength={60} value={label} onChange={(e) => setLabel(e.target.value)} />
             </Field>
             <Field label="Expires (optional)" htmlFor="i-ex">
@@ -186,7 +186,7 @@ export function IssueCardModal({ onClose, initialNumber = '' }: { onClose: () =>
                 <legend className="mb-1 text-sm font-semibold">Tags</legend>
                 <div className="flex flex-wrap gap-2">
                   {tags.data.data.map((t) => (
-                    <label key={t.id} className={`flex min-h-[44px] cursor-pointer items-center gap-2 rounded-xl px-3 ring-1 ring-inset ${tagIds.includes(t.id) ? 'bg-brand-50 ring-brand-500 dark:bg-brand-900/30' : 'ring-slate-300 dark:ring-slate-600'}`}>
+                    <label key={t.id} className={`flex min-h-[44px] cursor-pointer items-center gap-2 rounded-lg px-3 ring-1 ring-inset ${tagIds.includes(t.id) ? 'bg-zinc-50 ring-zinc-900 dark:bg-zinc-800 dark:ring-white' : 'ring-zinc-300 dark:ring-zinc-600'}`}>
                       <input type="checkbox" className="h-5 w-5" checked={tagIds.includes(t.id)} onChange={(e) => setTagIds((ids) => (e.target.checked ? [...ids, t.id] : ids.filter((x) => x !== t.id)))} />
                       <TagChip tag={t} />
                     </label>

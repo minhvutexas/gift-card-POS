@@ -15,9 +15,9 @@ const Ctx = createContext<{ push: (t: Omit<Toast, 'id' | 'duration'> & { duratio
 
 const ICON = { success: CheckCircle2, error: XCircle, info: Info, warning: AlertTriangle };
 const STYLE: Record<Kind, string> = {
-  success: 'border-emerald-500/40 bg-white dark:bg-slate-900',
+  success: 'border-emerald-500/40 bg-white dark:bg-zinc-900',
   error: 'border-red-500/50 bg-red-50 dark:bg-red-950',
-  info: 'border-sky-500/40 bg-white dark:bg-slate-900',
+  info: 'border-sky-500/40 bg-white dark:bg-zinc-900',
   warning: 'border-amber-500/50 bg-amber-50 dark:bg-amber-950',
 };
 const ICON_COLOR: Record<Kind, string> = { success: 'text-emerald-600', error: 'text-red-600', info: 'text-sky-600', warning: 'text-amber-600' };
@@ -40,16 +40,16 @@ function ToastItem({ t, onClose }: { t: Toast; onClose: () => void }) {
       role={t.kind === 'error' ? 'alert' : 'status'}
       onMouseEnter={() => (paused.current = true)}
       onMouseLeave={() => (paused.current = false)}
-      className={`pointer-events-auto relative w-full max-w-sm overflow-hidden rounded-xl border-2 p-4 shadow-lg animate-pop ${STYLE[t.kind]}`}
+      className={`pointer-events-auto relative w-full max-w-sm overflow-hidden rounded-lg border-2 p-4 shadow-sm animate-pop ${STYLE[t.kind]}`}
     >
       <div className="flex gap-3">
         <Icon className={`mt-0.5 h-6 w-6 shrink-0 ${ICON_COLOR[t.kind]}`} aria-hidden />
         <div className="min-w-0 flex-1">
           <p className="font-semibold">{t.title}</p>
-          {t.message && <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-300">{t.message}</p>}
+          {t.message && <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">{t.message}</p>}
           {t.action && (
             <button
-              className="mt-2 min-h-[44px] rounded-lg bg-slate-900 px-4 font-semibold text-white hover:bg-slate-700 dark:bg-white dark:text-slate-900"
+              className="mt-2 min-h-[44px] rounded-lg bg-zinc-900 px-4 font-semibold text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900"
               onClick={async () => {
                 onClose();
                 await t.action!.onClick();
@@ -59,7 +59,7 @@ function ToastItem({ t, onClose }: { t: Toast; onClose: () => void }) {
             </button>
           )}
         </div>
-        <button onClick={onClose} className="-m-2 h-11 w-11 shrink-0 rounded-lg p-2 text-slate-500 hover:bg-black/5" aria-label="Dismiss notification">
+        <button onClick={onClose} className="-m-2 h-11 w-11 shrink-0 rounded-lg p-2 text-zinc-500 hover:bg-black/5" aria-label="Dismiss notification">
           <X className="mx-auto h-5 w-5" />
         </button>
       </div>

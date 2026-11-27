@@ -7,11 +7,12 @@ import type { CardStatus, Tag } from '../lib/types';
 // ------------------------------------------------------------------ buttons
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'success';
 const VARIANT: Record<Variant, string> = {
-  primary: 'bg-brand-600 text-white hover:bg-brand-700 focus-visible:ring-brand-500 disabled:bg-brand-600/50',
-  secondary: 'bg-white text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-600 dark:hover:bg-slate-700',
-  danger: 'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500 disabled:bg-red-600/50',
-  success: 'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500 disabled:bg-emerald-600/50',
-  ghost: 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800',
+  // Solid fills only. Primary = ink (black in light, white in dark), like most POS apps.
+  primary: 'bg-zinc-900 text-white hover:bg-zinc-700 focus-visible:ring-brand-500/40 disabled:bg-zinc-200 disabled:text-zinc-500 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500',
+  secondary: 'bg-white text-zinc-900 ring-1 ring-inset ring-zinc-300 hover:bg-zinc-50 focus-visible:ring-brand-500/40 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700 dark:hover:bg-zinc-800',
+  danger: 'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500/40',
+  success: 'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500/40',
+  ghost: 'text-zinc-700 hover:bg-zinc-100 focus-visible:ring-brand-500/40 dark:text-zinc-200 dark:hover:bg-zinc-800',
 };
 
 export function Button({ variant = 'primary', size = 'md', className = '', loading, children, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' | 'lg' | 'xl'; loading?: boolean }) {
@@ -21,7 +22,7 @@ export function Button({ variant = 'primary', size = 'md', className = '', loadi
       {...rest}
       disabled={rest.disabled || loading}
       aria-busy={loading || undefined}
-      className={`inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition focus:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-60 ${sz} ${VARIANT[variant]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-colors focus:outline-none focus-visible:ring-4 disabled:cursor-not-allowed ${variant === 'primary' ? '' : 'disabled:opacity-50'} ${sz} ${VARIANT[variant]} ${className}`}
     >
       {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" aria-hidden />}
       {children}
@@ -42,8 +43,8 @@ export function StatusPill({ status, size = 'md' }: { status: CardStatus; size?:
 
 export function TagChip({ tag }: { tag: Pick<Tag, 'name' | 'color'> }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-      <span className={`h-2 w-2 rounded-full ${TAG_COLORS[tag.color] ?? 'bg-slate-400'}`} aria-hidden />
+    <span className="inline-flex items-center gap-1 rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+      <span className={`h-2 w-2 rounded-full ${TAG_COLORS[tag.color] ?? 'bg-zinc-400'}`} aria-hidden />
       {tag.name}
     </span>
   );
@@ -127,20 +128,20 @@ export function Modal({ open, onClose, title, children, footer, size = 'md', dis
   if (!open) return null;
   const w = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }[size];
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" onMouseDown={(e) => dismissable && e.target === e.currentTarget && onClose()}>
-      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId} className={`flex max-h-[95vh] w-full ${w} flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl animate-pop dark:bg-slate-900 sm:rounded-2xl`}>
-        <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-3 dark:border-slate-800">
-          <h2 id={titleId} className="text-xl font-bold">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-950/50 p-0 sm:items-center sm:p-4" onMouseDown={(e) => dismissable && e.target === e.currentTarget && onClose()}>
+      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId} className={`flex max-h-[95vh] w-full ${w} flex-col overflow-hidden rounded-t-xl border border-zinc-200 bg-white shadow-xl animate-pop dark:border-zinc-800 dark:bg-zinc-900 sm:rounded-xl`}>
+        <div className="flex items-center justify-between gap-4 border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
+          <h2 id={titleId} className="text-lg font-semibold">
             {title}
           </h2>
           {dismissable && (
-            <button onClick={onClose} className="h-11 w-11 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close">
+            <button onClick={onClose} className="h-11 w-11 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="Close">
               <X className="mx-auto h-6 w-6" />
             </button>
           )}
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-5 py-3 dark:border-slate-800">{footer}</div>}
+        {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-200 px-5 py-3 dark:border-zinc-800">{footer}</div>}
       </div>
     </div>
   );
@@ -150,7 +151,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md', dis
 export function Field({ label, error, hint, children, htmlFor }: { label: ReactNode; error?: string | null; hint?: ReactNode; children: ReactNode; htmlFor?: string }) {
   return (
     <div className="space-y-1">
-      <label htmlFor={htmlFor} className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+      <label htmlFor={htmlFor} className="block text-sm font-medium text-zinc-700 dark:text-zinc-200">
         {label}
       </label>
       {children}
@@ -159,31 +160,31 @@ export function Field({ label, error, hint, children, htmlFor }: { label: ReactN
           {error}
         </p>
       ) : hint ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">{hint}</p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{hint}</p>
       ) : null}
     </div>
   );
 }
 
 export const inputCls =
-  'block w-full min-h-[48px] rounded-xl border-0 bg-white px-3 text-base text-slate-900 ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500 dark:bg-slate-800 dark:text-white dark:ring-slate-600 aria-[invalid=true]:ring-red-500';
+  'block w-full min-h-[48px] rounded-lg border-0 bg-white px-3 text-base text-zinc-900 ring-1 ring-inset ring-zinc-300 placeholder:text-zinc-400 focus:ring-2 focus:ring-brand-600 dark:bg-zinc-900 dark:text-white dark:ring-zinc-700 aria-[invalid=true]:ring-red-500';
 
 // ------------------------------------------------------------------ empty / skeleton
 export function EmptyState({ icon, title, children, action }: { icon: ReactNode; title: string; children?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 px-6 py-14 text-center dark:border-slate-700">
-      <div className="mb-3 text-slate-400" aria-hidden>
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="mb-3 text-zinc-400" aria-hidden>
         {icon}
       </div>
-      <h3 className="text-lg font-bold">{title}</h3>
-      {children && <div className="mt-1 max-w-md text-slate-600 dark:text-slate-400">{children}</div>}
+      <h3 className="text-base font-semibold">{title}</h3>
+      {children && <div className="mt-1 max-w-md text-zinc-600 dark:text-zinc-400">{children}</div>}
       {action && <div className="mt-5">{action}</div>}
     </div>
   );
 }
 
 export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded-lg bg-slate-200 dark:bg-slate-800 ${className}`} aria-hidden />;
+  return <div className={`animate-pulse rounded-lg bg-zinc-200 dark:bg-zinc-800 ${className}`} aria-hidden />;
 }
 
 export function SkeletonRows({ rows = 6 }: { rows?: number }) {

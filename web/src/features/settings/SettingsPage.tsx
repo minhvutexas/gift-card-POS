@@ -37,7 +37,7 @@ export function SettingsPage() {
             key={t.key}
             to={`/settings/${t.key}`}
             className={({ isActive }) =>
-              `flex min-h-[48px] shrink-0 items-center gap-3 rounded-xl px-3 font-semibold ${isActive ? 'bg-brand-600 text-white' : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'}`
+              `flex min-h-[48px] shrink-0 items-center gap-3 rounded-lg px-3 font-medium ${isActive ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white' : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800/60'}`
             }
           >
             <t.icon className="h-5 w-5" aria-hidden />
@@ -45,7 +45,7 @@ export function SettingsPage() {
           </NavLink>
         ))}
       </nav>
-      <section className="min-w-0 flex-1 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800" aria-labelledby="settings-h">
+      <section className="min-w-0 flex-1 rounded-xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800" aria-labelledby="settings-h">
         <h1 id="settings-h" className="mb-4 text-2xl font-bold">
           {active.label}
         </h1>

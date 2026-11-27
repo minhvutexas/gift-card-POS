@@ -22,8 +22,8 @@ export const STATUS: Record<CardStatus, { label: string; glyph: string; pill: st
   CLOSED: {
     label: 'Zero balance',
     glyph: '○',
-    pill: 'bg-slate-200 text-slate-800 ring-slate-500/30 dark:bg-slate-500/20 dark:text-slate-200 dark:ring-slate-400/30',
-    dot: 'bg-slate-400',
+    pill: 'bg-zinc-200 text-zinc-800 ring-zinc-500/30 dark:bg-zinc-500/20 dark:text-zinc-200 dark:ring-zinc-400/30',
+    dot: 'bg-zinc-400',
     hint: 'Fully redeemed — can be reloaded',
   },
   PENDING_ACTIVATION: {
@@ -90,7 +90,7 @@ export const actionLabel = (a: string) =>
     .replace(/^\w/, (c) => c.toUpperCase());
 
 export const TAG_COLORS: Record<string, string> = {
-  slate: 'bg-slate-400',
+  slate: 'bg-zinc-400',
   pink: 'bg-pink-500',
   violet: 'bg-violet-500',
   sky: 'bg-sky-500',

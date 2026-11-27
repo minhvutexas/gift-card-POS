@@ -121,10 +121,10 @@ export function CardsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Gift Cards</h1>
-          <p className="text-slate-600 dark:text-slate-300" aria-live="polite">
+          <p className="text-zinc-600 dark:text-zinc-300" aria-live="polite">
             {data ? (
               <>
-                <strong>{data.meta.total}</strong> card{data.meta.total === 1 ? '' : 's'} · Total outstanding: <AnimatedMoney cents={data.meta.outstanding_total_cents} className="font-bold text-slate-900 dark:text-white" />
+                <strong>{data.meta.total}</strong> card{data.meta.total === 1 ? '' : 's'} · Total outstanding: <AnimatedMoney cents={data.meta.outstanding_total_cents} className="font-bold text-zinc-900 dark:text-white" />
               </>
             ) : (
               'Loading…'
@@ -132,12 +132,13 @@ export function CardsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link to="/history" className="inline-flex min-h-[48px] items-center gap-2 rounded-xl px-4 font-semibold ring-1 ring-inset ring-slate-300 hover:bg-slate-100 dark:ring-slate-600 dark:hover:bg-slate-800">
-            <History className="h-5 w-5" /> 📜 History Log
+          {/* On phones History is already in the bottom bar */}
+          <Link to="/history" className="hidden min-h-[48px] items-center gap-2 rounded-lg bg-white px-4 font-semibold ring-1 ring-inset ring-zinc-300 hover:bg-zinc-50 dark:bg-zinc-900 dark:ring-zinc-700 dark:hover:bg-zinc-800 sm:inline-flex">
+            <History className="h-5 w-5" /> History log
           </Link>
           {can('cards.archive') && (
             <Button variant="secondary" onClick={() => open('archive')}>
-              <Archive className="h-5 w-5" /> 🗑 Clear Zero-Balance
+              <Archive className="h-5 w-5" /> Clear zero-balance
             </Button>
           )}
           {can('cards.redeem') && (
@@ -177,10 +178,10 @@ export function CardsPage() {
           )}
         </form>
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" aria-hidden />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" aria-hidden />
           <input value={q} onChange={(e) => (setQ(e.target.value), set('q', e.target.value))} placeholder="Search number, label, name, phone, email" aria-label="Search cards" className={`${inputCls} pl-10 pr-10`} type="search" />
           {q && (
-            <button onClick={() => (setQ(''), set('q', null))} className="absolute right-1 top-1/2 h-10 w-10 -translate-y-1/2 rounded-lg text-slate-400 hover:text-slate-700" aria-label="Clear search">
+            <button onClick={() => (setQ(''), set('q', null))} className="absolute right-1 top-1/2 h-10 w-10 -translate-y-1/2 rounded-lg text-zinc-400 hover:text-zinc-700" aria-label="Clear search">
               <X className="mx-auto h-5 w-5" />
             </button>
           )}
@@ -202,7 +203,7 @@ export function CardsPage() {
             role="radio"
             aria-checked={status === c.key}
             onClick={() => set('status', c.key === 'all' ? null : c.key)}
-            className={`min-h-[44px] shrink-0 rounded-full px-4 font-semibold ring-1 ring-inset transition ${status === c.key ? 'bg-slate-900 text-white ring-slate-900 dark:bg-white dark:text-slate-900' : 'bg-white ring-slate-300 hover:bg-slate-100 dark:bg-slate-900 dark:ring-slate-700 dark:hover:bg-slate-800'}`}
+            className={`min-h-[44px] shrink-0 rounded-full px-4 font-semibold ring-1 ring-inset transition ${status === c.key ? 'bg-zinc-900 text-white ring-zinc-900 dark:bg-white dark:text-zinc-900' : 'bg-white ring-zinc-300 hover:bg-zinc-100 dark:bg-zinc-900 dark:ring-zinc-700 dark:hover:bg-zinc-800'}`}
           >
             {c.label}
           </button>
@@ -211,7 +212,7 @@ export function CardsPage() {
 
       {/* Bulk bar */}
       {selected.size > 0 && (
-        <div role="toolbar" aria-label="Bulk actions" className="sticky top-16 z-20 flex flex-wrap items-center gap-2 rounded-xl bg-slate-900 p-2 text-white shadow-lg dark:bg-slate-100 dark:text-slate-900">
+        <div role="toolbar" aria-label="Bulk actions" className="sticky top-16 z-20 flex flex-wrap items-center gap-2 rounded-lg bg-zinc-900 p-2 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900">
           <span className="px-2 font-semibold">{selected.size} selected</span>
           {can('cards.freeze') && (
             <>
@@ -266,10 +267,10 @@ export function CardsPage() {
           {debounced || status !== 'all' ? 'Try a different search or filter.' : 'Sell a card with “+ New Card”, or import your old cards in Settings › Import.'}
         </EmptyState>
       ) : (
-        <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+        <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
           <table className="w-full">
             <caption className="sr-only">Gift cards</caption>
-            <thead className="hidden bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 md:table-header-group">
+            <thead className="hidden bg-zinc-50 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:bg-zinc-800/50 md:table-header-group">
               <tr>
                 <th className="w-12 px-3 py-2">
                   <input type="checkbox" className="h-5 w-5" aria-label="Select all on this page" checked={allSelected} onChange={(e) => setSelected(e.target.checked ? new Set(cards.map((c) => c.id)) : new Set())} />
@@ -278,12 +279,14 @@ export function CardsPage() {
                 <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2 text-right">Balance</th>
                 <th className="px-3 py-2">Holder</th>
-                <th className="px-3 py-2 text-center">🏷</th>
-                <th className="px-3 py-2 text-center">🗑</th>
+                <th className="px-3 py-2 text-center">Tags</th>
+                <th className="px-3 py-2 text-center">
+                  <span className="sr-only">Delete</span>
+                </th>
                 <th className="w-12" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
               {cards.map((c) => (
                 <Row key={c.id} card={c} selected={selected.has(c.id)} onSelect={(v) => setSelected((s) => { const n = new Set(s); v ? n.add(c.id) : n.delete(c.id); return n; })} />
               ))}
@@ -311,7 +314,7 @@ export function CardsPage() {
           }
         >
           {bulkAsk.action === 'void' && (
-            <p className="mb-3 rounded-xl bg-red-50 p-3 text-sm text-red-900 dark:bg-red-950 dark:text-red-100">
+            <p className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-900 dark:bg-red-950 dark:text-red-100">
               Forfeits {formatCents(selCards.reduce((s, c) => s + c.balance_cents, 0))} in total. Cannot be undone. Manager approval required.
             </p>
           )}
@@ -344,7 +347,7 @@ function Row({ card: c, selected, onSelect }: { card: Card; selected: boolean; o
   const holder = holderName(c.customer);
   return (
     <tr
-      className={`grid cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-x-2 px-2 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 md:table-row md:px-0 ${selected ? 'bg-brand-50 dark:bg-brand-900/20' : ''}`}
+      className={`grid cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-x-2 px-2 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 md:table-row md:px-0 ${selected ? 'bg-brand-50 dark:bg-brand-900/20' : ''}`}
       onClick={() => open('details', c)}
     >
       <td className="px-1 md:px-3" onClick={(e) => e.stopPropagation()}>
@@ -357,23 +360,23 @@ function Row({ card: c, selected, onSelect }: { card: Card; selected: boolean; o
         <div className="md:hidden">
           <StatusPill status={c.status} size="sm" />
         </div>
-        {c.label && <div className="truncate text-sm text-slate-500 md:hidden">🏷 {c.label}</div>}
+        {c.label && <div className="truncate text-sm text-zinc-500 md:hidden">{c.label}</div>}
       </td>
       <td className="hidden px-3 md:table-cell">
         <StatusPill status={c.status} />
       </td>
       <td className="px-1 text-right md:px-3">
-        <span className={`text-lg font-bold tabular-nums ${c.balance_cents === 0 ? 'text-slate-400' : ''}`}>{formatCents(c.balance_cents, c.currency)}</span>
+        <span className={`text-lg font-bold tabular-nums ${c.balance_cents === 0 ? 'text-zinc-400' : ''}`}>{formatCents(c.balance_cents, c.currency)}</span>
       </td>
-      <td className="hidden max-w-[12rem] truncate px-3 text-sm text-slate-600 dark:text-slate-300 md:table-cell">{holder || <span className="text-slate-400">—</span>}</td>
+      <td className="hidden max-w-[12rem] truncate px-3 text-sm text-zinc-600 dark:text-zinc-300 md:table-cell">{holder || <span className="text-zinc-400">—</span>}</td>
       <td className="hidden px-3 text-center md:table-cell" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={() => can('cards.edit') && open('tags', c)}
           title={c.label ?? (c.tags.map((t) => t.name).join(', ') || 'Add label')}
           aria-label={c.label ? `Label: ${c.label}. Edit` : 'Add label'}
-          className="inline-flex h-11 min-w-[44px] items-center justify-center gap-1 rounded-lg px-2 hover:bg-slate-100 dark:hover:bg-slate-800"
+          className="inline-flex h-11 min-w-[44px] items-center justify-center gap-1 rounded-lg px-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
-          {c.color_tag ? <span className={`h-3 w-3 rounded-full ${TAG_COLORS[c.color_tag] ?? 'bg-slate-400'}`} aria-hidden /> : <TagIcon className={`h-5 w-5 ${c.label || c.tags.length ? 'text-brand-600' : 'text-slate-300'}`} />}
+          {c.color_tag ? <span className={`h-3 w-3 rounded-full ${TAG_COLORS[c.color_tag] ?? 'bg-zinc-400'}`} aria-hidden /> : <TagIcon className={`h-5 w-5 ${c.label || c.tags.length ? 'text-brand-600' : 'text-zinc-300'}`} />}
           {c.label && <span className="max-w-[8rem] truncate text-sm">{c.label}</span>}
         </button>
       </td>
@@ -384,7 +387,7 @@ function Row({ card: c, selected, onSelect }: { card: Card; selected: boolean; o
             disabled={c.balance_cents > 0}
             title={c.balance_cents > 0 ? 'Only $0 cards can be deleted — void first' : 'Delete (soft)'}
             aria-label={`Delete card ${c.card_number}`}
-            className="h-11 w-11 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-red-950"
+            className="h-11 w-11 rounded-lg text-zinc-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-red-950"
           >
             <Trash2 className="mx-auto h-5 w-5" />
           </button>

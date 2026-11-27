@@ -37,7 +37,7 @@ function Staff() {
   if (loading)
     return (
       <div className="flex min-h-screen items-center justify-center" role="status">
-        <span className="h-10 w-10 animate-spin rounded-full border-4 border-brand-600 border-r-transparent" />
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-zinc-900 border-r-transparent dark:border-white dark:border-r-transparent" />
         <span className="sr-only">Loading</span>
       </div>
     );
@@ -68,7 +68,7 @@ function Watermark() {
   return (
     <div
       aria-hidden
-      className="pointer-events-none fixed bottom-20 right-3 z-10 select-none text-sm font-semibold tracking-wide text-slate-900/25 dark:text-white/25 md:bottom-3"
+      className="pointer-events-none fixed bottom-3 right-3 z-10 hidden select-none text-xs font-medium tracking-wide text-zinc-900/30 dark:text-white/30 md:block"
     >
       UniJV Product
     </div>

@@ -82,7 +82,7 @@ export function ImportPanel() {
     <div className="space-y-4">
       <ol className="flex gap-2 text-sm font-semibold" aria-label="Import steps">
         {['upload', 'map', 'preview', 'done'].map((s, i) => (
-          <li key={s} aria-current={step === s ? 'step' : undefined} className={`rounded-full px-3 py-1 ${step === s ? 'bg-brand-600 text-white' : 'bg-slate-100 dark:bg-slate-800'}`}>
+          <li key={s} aria-current={step === s ? 'step' : undefined} className={`rounded-full px-3 py-1 ${step === s ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900' : 'bg-zinc-100 dark:bg-zinc-800'}`}>
             {i + 1}. {s === 'map' ? 'Map columns' : s === 'preview' ? 'Dry run' : s[0].toUpperCase() + s.slice(1)}
           </li>
         ))}
@@ -94,10 +94,10 @@ export function ImportPanel() {
       )}
 
       {step === 'upload' && (
-        <label className="flex min-h-[160px] cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 p-6 text-center hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
-          <FileUp className="h-10 w-10 text-slate-400" aria-hidden />
+        <label className="flex min-h-[160px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-300 p-6 text-center hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+          <FileUp className="h-10 w-10 text-zinc-400" aria-hidden />
           <span className="font-semibold">Choose a CSV exported from your old POS</span>
-          <span className="text-sm text-slate-500">Needs at least a card number and a balance column. Nothing is saved until you confirm.</span>
+          <span className="text-sm text-zinc-500">Needs at least a card number and a balance column. Nothing is saved until you confirm.</span>
           <input type="file" accept=".csv,text/csv" className="sr-only" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} disabled={busy} />
         </label>
       )}
@@ -134,7 +134,7 @@ export function ImportPanel() {
                 </thead>
                 <tbody>
                   {sample.map((r, i) => (
-                    <tr key={i} className="border-t border-slate-100 dark:border-slate-800">
+                    <tr key={i} className="border-t border-zinc-100 dark:border-zinc-800">
                       {headers.map((h) => (
                         <td key={h} className="px-2 py-1">
                           {r[h]}
@@ -176,15 +176,15 @@ export function ImportPanel() {
               ['Skipped (dupes / $0)', preview.rows_skipped, 'text-amber-700'],
               ['Total balance', formatCents(preview.total_balance_cents), ''],
             ].map(([l, n, c]) => (
-              <div key={l as string} className="rounded-xl bg-slate-100 p-3 text-center dark:bg-slate-800">
+              <div key={l as string} className="rounded-lg bg-zinc-100 p-3 text-center dark:bg-zinc-800">
                 <p className={`text-2xl font-bold ${c}`}>{n}</p>
-                <p className="text-sm text-slate-500">{l}</p>
+                <p className="text-sm text-zinc-500">{l}</p>
               </div>
             ))}
           </div>
-          <div className="max-h-80 overflow-auto rounded-xl ring-1 ring-slate-200 dark:ring-slate-700">
+          <div className="max-h-80 overflow-auto rounded-lg ring-1 ring-zinc-200 dark:ring-zinc-700">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-slate-50 text-left dark:bg-slate-800">
+              <thead className="sticky top-0 bg-zinc-50 text-left dark:bg-zinc-800">
                 <tr>
                   <th className="px-2 py-1">Row</th>
                   <th>Card</th>
@@ -195,7 +195,7 @@ export function ImportPanel() {
               </thead>
               <tbody>
                 {preview.preview.map((r) => (
-                  <tr key={r.row} className="border-t border-slate-100 dark:border-slate-800">
+                  <tr key={r.row} className="border-t border-zinc-100 dark:border-zinc-800">
                     <td className="px-2 py-1">{r.row}</td>
                     <td className="font-mono">{r.card_number}</td>
                     <td className="text-right tabular-nums">{r.balance_cents !== null ? formatCents(r.balance_cents) : ''}</td>

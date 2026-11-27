@@ -82,14 +82,14 @@ export function TransferModal({ kind, card, onClose }: { kind: Kind; card: Card;
       }
     >
       <div className="mb-4 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-        <div className="rounded-xl bg-slate-100 p-3 dark:bg-slate-800">
-          <p className="text-xs uppercase text-slate-500">From</p>
+        <div className="rounded-lg bg-zinc-100 p-3 dark:bg-zinc-800">
+          <p className="text-xs uppercase text-zinc-500">From</p>
           <p className="font-mono font-bold">{card.card_number}</p>
           <p className="tabular-nums">{formatCents(card.balance_cents)}</p>
         </div>
-        <ArrowRight className="h-6 w-6 text-slate-400" aria-hidden />
-        <div className="rounded-xl bg-slate-100 p-3 dark:bg-slate-800">
-          <p className="text-xs uppercase text-slate-500">To</p>
+        <ArrowRight className="h-6 w-6 text-zinc-400" aria-hidden />
+        <div className="rounded-lg bg-zinc-100 p-3 dark:bg-zinc-800">
+          <p className="text-xs uppercase text-zinc-500">To</p>
           {kind === 'split' ? (
             <p className="font-semibold">New card</p>
           ) : other ? (
@@ -99,7 +99,7 @@ export function TransferModal({ kind, card, onClose }: { kind: Kind; card: Card;
               <StatusPill status={other.status} size="sm" />
             </>
           ) : (
-            <p className="text-slate-500">Scan below</p>
+            <p className="text-zinc-500">Scan below</p>
           )}
         </div>
       </div>
@@ -134,7 +134,7 @@ export function TransferModal({ kind, card, onClose }: { kind: Kind; card: Card;
           <AmountKeypad value={amount} onChange={setAmount} max={card.balance_cents} error={other || kind === 'split' ? err : null} />
         </div>
       )}
-      {kind === 'merge' && <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">The full balance moves to the other card and this card is closed. Both cards keep their history.</p>}
+      {kind === 'merge' && <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">The full balance moves to the other card and this card is closed. Both cards keep their history.</p>}
     </Modal>
   );
 }

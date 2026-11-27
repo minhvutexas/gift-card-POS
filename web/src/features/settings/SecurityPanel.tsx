@@ -29,7 +29,7 @@ export function SecurityPanel() {
   return (
     <div className="space-y-8">
       <fieldset disabled={!owner} className="grid gap-4 sm:grid-cols-2">
-        {!owner && <p className="text-sm text-slate-500 sm:col-span-2">Only the owner can change security settings.</p>}
+        {!owner && <p className="text-sm text-zinc-500 sm:col-span-2">Only the owner can change security settings.</p>}
         <Field label="Session timeout (minutes)" htmlFor="s-to">
           <input id="s-to" className={inputCls} inputMode="numeric" value={v.session_timeout_min} onChange={num('session_timeout_min', 5, 1440)} />
         </Field>
@@ -82,12 +82,12 @@ function UsersSection() {
           </Button>
         )}
       </div>
-      <ul className="divide-y divide-slate-100 rounded-xl ring-1 ring-slate-200 dark:divide-slate-800 dark:ring-slate-700">
+      <ul className="divide-y divide-zinc-100 rounded-lg ring-1 ring-zinc-200 dark:divide-zinc-800 dark:ring-zinc-700">
         {q.data?.data.map((u) => (
           <li key={u.id} className="flex min-h-[56px] flex-wrap items-center justify-between gap-2 px-3 py-2">
             <span>
-              <strong className={u.active ? '' : 'line-through opacity-60'}>{u.name}</strong> <span className="text-sm text-slate-500">@{u.username}</span>
-              <span className="block text-xs text-slate-500">
+              <strong className={u.active ? '' : 'line-through opacity-60'}>{u.name}</strong> <span className="text-sm text-zinc-500">@{u.username}</span>
+              <span className="block text-xs text-zinc-500">
                 {u.role} · last login {fmtDateTime(u.last_login_at)} {u.locked_until && new Date(u.locked_until) > new Date() && <span className="font-bold text-red-600">· locked</span>}
               </span>
             </span>
@@ -194,10 +194,10 @@ function RolesSection() {
   return (
     <section>
       <h2 className="mb-1 text-lg font-bold">Roles & permissions</h2>
-      <p className="mb-2 text-sm text-slate-500">OWNER always has every permission. {owner ? 'Tap to toggle.' : 'Only the owner can edit.'}</p>
-      <div className="overflow-x-auto rounded-xl ring-1 ring-slate-200 dark:ring-slate-700">
+      <p className="mb-2 text-sm text-zinc-500">OWNER always has every permission. {owner ? 'Tap to toggle.' : 'Only the owner can edit.'}</p>
+      <div className="overflow-x-auto rounded-lg ring-1 ring-zinc-200 dark:ring-zinc-700">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800">
+          <thead className="bg-zinc-50 dark:bg-zinc-800">
             <tr>
               <th className="px-3 py-2 text-left">Permission</th>
               {roles.map((r) => (
@@ -209,7 +209,7 @@ function RolesSection() {
           </thead>
           <tbody>
             {q.data.permissions.map((p) => (
-              <tr key={p} className="border-t border-slate-100 dark:border-slate-800">
+              <tr key={p} className="border-t border-zinc-100 dark:border-zinc-800">
                 <td className="px-3 py-1 font-mono">{p}</td>
                 {roles.map((r) => {
                   const on = q.data!.matrix[r]?.includes(p) ?? false;

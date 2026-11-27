@@ -71,7 +71,7 @@ export function ApprovalProvider({ children }: { children: ReactNode }) {
           A manager must approve to <strong>{ACTION_TEXT[req?.action ?? ''] ?? req?.action}</strong>.
         </p>
         {req?.dual_control && <p className="mb-3 text-center text-sm font-semibold text-amber-700 dark:text-amber-300">Dual control: a different manager than the one requesting.</p>}
-        <p className="mb-4 text-center text-sm text-slate-500">Manager, enter your PIN</p>
+        <p className="mb-4 text-center text-sm text-zinc-500">Manager, enter your PIN</p>
         <PinPad value={pin} onChange={setPin} onSubmit={submit} error={error} disabled={busy} />
       </Modal>
     </>

@@ -73,13 +73,13 @@ export function AmountModal({ kind, card, onClose }: { kind: Kind; card: Card; o
         </>
       }
     >
-      <div className="mb-4 flex items-center justify-between rounded-xl bg-slate-100 p-3 dark:bg-slate-800">
+      <div className="mb-4 flex items-center justify-between rounded-lg bg-zinc-100 p-3 dark:bg-zinc-800">
         <div>
           <p className="font-mono text-lg font-bold">{card.card_number}</p>
           <StatusPill status={card.status} size="sm" />
         </div>
         <div className="text-right">
-          <p className="text-xs uppercase text-slate-500">Balance now → after</p>
+          <p className="text-xs uppercase text-zinc-500">Balance now → after</p>
           <p className="text-2xl font-bold tabular-nums">
             {formatCents(card.balance_cents)} → <span className="text-brand-700 dark:text-brand-400">{formatCents(Math.max(0, card.balance_cents + delta))}</span>
           </p>
@@ -88,7 +88,7 @@ export function AmountModal({ kind, card, onClose }: { kind: Kind; card: Card; o
       {kind === 'adjust' && (
         <div className="mb-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Adjustment direction">
           {([1, -1] as const).map((s) => (
-            <button key={s} role="radio" aria-checked={sign === s} onClick={() => setSign(s)} className={`min-h-[52px] rounded-xl text-lg font-bold ring-2 ring-inset ${sign === s ? (s > 0 ? 'bg-emerald-600 text-white ring-emerald-600' : 'bg-red-600 text-white ring-red-600') : 'ring-slate-300 dark:ring-slate-600'}`}>
+            <button key={s} role="radio" aria-checked={sign === s} onClick={() => setSign(s)} className={`min-h-[52px] rounded-lg text-lg font-bold ring-2 ring-inset ${sign === s ? (s > 0 ? 'bg-emerald-600 text-white ring-emerald-600' : 'bg-red-600 text-white ring-red-600') : 'ring-zinc-300 dark:ring-zinc-600'}`}>
               {s > 0 ? '+ Add' : '− Remove'}
             </button>
           ))}

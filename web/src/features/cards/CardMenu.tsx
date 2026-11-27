@@ -84,7 +84,7 @@ export function CardMenu({ card }: { card: Card }) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Actions for card ${card.card_number}`}
-        className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+        className="flex h-11 w-11 items-center justify-center rounded-lg text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
       >
         <MoreVertical className="h-5 w-5" />
       </button>
@@ -104,18 +104,18 @@ export function CardMenu({ card }: { card: Card }) {
             } else return;
             e.preventDefault();
           }}
-          className="absolute right-0 z-30 mt-1 max-h-[70vh] w-60 overflow-auto rounded-xl bg-white py-1 shadow-xl ring-1 ring-slate-200 animate-pop dark:bg-slate-900 dark:ring-slate-700"
+          className="absolute right-0 z-30 mt-1 max-h-[70vh] w-60 overflow-auto rounded-lg bg-white py-1 shadow-sm ring-1 ring-zinc-200 animate-pop dark:bg-zinc-900 dark:ring-zinc-700"
         >
           {items.map((it, idx) => (
             <div key={it.kind}>
-              {it.danger && !items[idx - 1]?.danger && <hr className="my-1 border-slate-200 dark:border-slate-700" />}
+              {it.danger && !items[idx - 1]?.danger && <hr className="my-1 border-zinc-200 dark:border-zinc-700" />}
               <button
                 role="menuitem"
                 onClick={() => {
                   setOpen(false);
                   run(it.kind);
                 }}
-                className={`flex min-h-[44px] w-full items-center gap-3 px-4 text-left text-sm font-medium hover:bg-slate-100 focus:bg-slate-100 focus:outline-none dark:hover:bg-slate-800 dark:focus:bg-slate-800 ${it.danger ? 'text-red-700 dark:text-red-400' : ''}`}
+                className={`flex min-h-[44px] w-full items-center gap-3 px-4 text-left text-sm font-medium hover:bg-zinc-100 focus:bg-zinc-100 focus:outline-none dark:hover:bg-zinc-800 dark:focus:bg-zinc-800 ${it.danger ? 'text-red-700 dark:text-red-400' : ''}`}
               >
                 <it.icon className="h-4 w-4" aria-hidden />
                 {it.label}

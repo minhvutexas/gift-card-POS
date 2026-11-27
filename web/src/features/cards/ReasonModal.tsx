@@ -80,7 +80,7 @@ export function ReasonModal({ kind, card, onClose }: { kind: Kind; card: Card; o
         Card <strong className="font-mono">{card.card_number}</strong> · balance <strong>{formatCents(card.balance_cents)}</strong>
       </p>
       {c.danger && (
-        <div className="mb-3 flex gap-2 rounded-xl bg-red-50 p-3 text-red-900 dark:bg-red-950 dark:text-red-100">
+        <div className="mb-3 flex gap-2 rounded-lg bg-red-50 p-3 text-red-900 dark:bg-red-950 dark:text-red-100">
           <AlertTriangle className="h-5 w-5 shrink-0" />
           <p className="text-sm">
             {kind === 'void'
@@ -91,7 +91,7 @@ export function ReasonModal({ kind, card, onClose }: { kind: Kind; card: Card; o
       )}
       <div className="mb-2 flex flex-wrap gap-2">
         {c.quick.map((q) => (
-          <button key={q} type="button" onClick={() => setReason(q)} className="min-h-[44px] rounded-full bg-slate-100 px-3 text-sm font-medium hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700">
+          <button key={q} type="button" onClick={() => setReason(q)} className="min-h-[44px] rounded-full bg-zinc-100 px-3 text-sm font-medium hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700">
             {q}
           </button>
         ))}

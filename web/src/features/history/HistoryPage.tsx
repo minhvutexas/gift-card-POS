@@ -12,7 +12,7 @@ import { useCardActions } from '../cards/CardActions';
 
 const TXN_ACTIONS = ['ISSUE', 'ACTIVATE', 'RELOAD', 'REDEEM', 'TIP_FROM_CARD', 'REFUND_TO_CARD', 'ADJUSTMENT', 'TRANSFER_OUT', 'TRANSFER_IN', 'MERGE_OUT', 'MERGE_IN', 'VOID', 'EXPIRE', 'REPLACE_OUT', 'REPLACE_IN', 'REVERSAL'];
 
-/** 📜 Append-only history, grouped by day; amounts +green / −red with running balance. */
+/** Append-only history, grouped by day; amounts +green / −red with running balance. */
 export function HistoryPage() {
   const { me, can } = useSession();
   const tz = me?.settings.general.timezone;
@@ -70,8 +70,8 @@ export function HistoryPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">📜 History log</h1>
-          <p className="text-slate-500">Every money movement and card event. Append-only — entries can never be edited or deleted.</p>
+          <h1 className="text-2xl font-bold">History log</h1>
+          <p className="text-zinc-500">Every money movement and card event. Append-only — entries can never be edited or deleted.</p>
         </div>
         {can('history.export') && (
           <div className="flex gap-2">
@@ -85,7 +85,7 @@ export function HistoryPage() {
         )}
       </div>
 
-      <form className="grid gap-2 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:grid-cols-3 lg:grid-cols-6" onSubmit={(e) => e.preventDefault()} aria-label="History filters">
+      <form className="grid gap-2 rounded-xl bg-white p-3 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800 sm:grid-cols-3 lg:grid-cols-6" onSubmit={(e) => e.preventDefault()} aria-label="History filters">
         <label className="text-sm font-semibold">
           From
           <input type="date" className={inputCls} value={f.from} onChange={(e) => set('from', e.target.value)} />
@@ -151,11 +151,11 @@ export function HistoryPage() {
         <div className="space-y-6">
           {groups.map(([day, rows]) => (
             <section key={day} aria-label={day}>
-              <h2 className="sticky top-16 z-10 mb-2 bg-slate-50/95 py-1 text-sm font-bold uppercase tracking-wide text-slate-500 backdrop-blur dark:bg-slate-950/95">{day}</h2>
-              <ol className="relative space-y-1 border-l-2 border-slate-200 pl-4 dark:border-slate-800">
+              <h2 className="sticky top-16 z-10 mb-2 bg-zinc-50 py-1 text-sm font-bold uppercase tracking-wide text-zinc-500 dark:bg-zinc-950">{day}</h2>
+              <ol className="relative space-y-1 border-l-2 border-zinc-200 pl-4 dark:border-zinc-800">
                 {rows.map((r) => (
-                  <li key={r.id} className="relative rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-                    <span className={`absolute -left-[23px] top-4 h-3 w-3 rounded-full ring-4 ring-slate-50 dark:ring-slate-950 ${r.kind === 'TXN' ? (r.amount_cents! > 0 ? 'bg-emerald-500' : r.amount_cents! < 0 ? 'bg-red-500' : 'bg-slate-400') : r.action.startsWith('alert.') ? 'bg-amber-500' : 'bg-slate-400'}`} aria-hidden />
+                  <li key={r.id} className="relative rounded-lg bg-white p-3 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
+                    <span className={`absolute -left-[23px] top-4 h-3 w-3 rounded-full ring-4 ring-zinc-50 dark:ring-zinc-950 ${r.kind === 'TXN' ? (r.amount_cents! > 0 ? 'bg-emerald-500' : r.amount_cents! < 0 ? 'bg-red-500' : 'bg-zinc-400') : r.action.startsWith('alert.') ? 'bg-amber-500' : 'bg-zinc-400'}`} aria-hidden />
                     <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
                       <div className="min-w-0">
                         <p className="font-semibold">
@@ -166,8 +166,8 @@ export function HistoryPage() {
                             </button>
                           )}
                         </p>
-                        <p className="flex flex-wrap items-center gap-x-3 text-sm text-slate-500">
-                          <time dateTime={r.occurred_at}>🕐 {new Date(r.occurred_at).toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', second: '2-digit' })}</time>
+                        <p className="flex flex-wrap items-center gap-x-3 text-sm text-zinc-500">
+                          <time dateTime={r.occurred_at}>{new Date(r.occurred_at).toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', second: '2-digit' })}</time>
                           <span className="flex items-center gap-1">
                             <User className="h-3.5 w-3.5" aria-hidden />
                             {r.actor_name ?? r.actor_type}
@@ -189,7 +189,7 @@ export function HistoryPage() {
                             <span className="sr-only">{r.amount_cents > 0 ? 'credit' : 'debit'} </span>
                             {signedCents(r.amount_cents)}
                           </p>
-                          <p className="text-xs text-slate-500">balance {formatCents(r.balance_after_cents)}</p>
+                          <p className="text-xs text-zinc-500">balance {formatCents(r.balance_after_cents)}</p>
                         </div>
                       )}
                     </div>

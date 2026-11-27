@@ -8,7 +8,7 @@ import { code128Svg } from '../../components/Receipt';
 import { useSetting } from './useSetting';
 
 export function SaveBar({ s }: { s: { dirty: boolean; save: () => void; saving: boolean; error: ApiError | null; canEdit: boolean } }) {
-  if (!s.canEdit) return <p className="mt-4 text-sm text-slate-500">Read-only for your role.</p>;
+  if (!s.canEdit) return <p className="mt-4 text-sm text-zinc-500">Read-only for your role.</p>;
   return (
     <div className="sticky bottom-20 mt-6 flex items-center justify-end gap-3 md:bottom-0">
       {s.error && (
@@ -27,17 +27,17 @@ export function SaveBar({ s }: { s: { dirty: boolean; save: () => void; saving: 
 
 export function Toggle({ label, checked, onChange, hint }: { label: ReactNode; checked: boolean; onChange: (v: boolean) => void; hint?: string }) {
   return (
-    <label className="flex min-h-[48px] cursor-pointer items-center justify-between gap-4 rounded-xl px-1">
+    <label className="flex min-h-[48px] cursor-pointer items-center justify-between gap-4 rounded-lg px-1">
       <span>
         <span className="font-medium">{label}</span>
-        {hint && <span className="block text-sm text-slate-500">{hint}</span>}
+        {hint && <span className="block text-sm text-zinc-500">{hint}</span>}
       </span>
       <button
         type="button"
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative h-8 w-14 shrink-0 rounded-full transition ${checked ? 'bg-brand-600' : 'bg-slate-300 dark:bg-slate-600'}`}
+        className={`relative h-8 w-14 shrink-0 rounded-full transition ${checked ? 'bg-brand-600' : 'bg-zinc-300 dark:bg-zinc-600'}`}
       >
         <span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition ${checked ? 'left-7' : 'left-1'}`} />
       </button>
@@ -49,7 +49,7 @@ export function MoneyInput({ id, cents, onChange }: { id: string; cents: number;
   const [text, setText] = useState((cents / 100).toFixed(2));
   return (
     <div className="relative">
-      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">$</span>
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">$</span>
       <input
         id={id}
         inputMode="decimal"
@@ -139,7 +139,7 @@ export function ReceiptPanel() {
       </div>
       <div>
         <p className="mb-2 text-sm font-semibold">Preview</p>
-        <div className="mx-auto w-72 rounded bg-white p-4 font-mono text-xs text-black shadow ring-1 ring-slate-200">
+        <div className="mx-auto w-72 rounded bg-white p-4 font-mono text-xs text-black shadow ring-1 ring-zinc-200">
           {v.header.split('\n').map((l: string, i: number) => (
             <p key={i} className="text-center font-bold">
               {l}
@@ -234,7 +234,7 @@ export function PrinterPanel() {
         <Button variant="secondary" onClick={test} loading={testing} disabled={s.dirty}>
           Print test page
         </Button>
-        {s.dirty && <span className="text-sm text-slate-500">Save first to test new settings</span>}
+        {s.dirty && <span className="text-sm text-zinc-500">Save first to test new settings</span>}
       </div>
       <div className="sm:col-span-2">
         <SaveBar s={s} />
@@ -301,7 +301,7 @@ export function MessagingPanel() {
           <legend className="mb-1 text-sm font-semibold">Expiry warnings (days before)</legend>
           <div className="flex gap-2">
             {[30, 14, 7, 3, 1].map((d) => (
-              <label key={d} className={`flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-xl font-semibold ring-1 ring-inset ${days.includes(d) ? 'bg-brand-600 text-white ring-brand-600' : 'ring-slate-300 dark:ring-slate-600'}`}>
+              <label key={d} className={`flex min-h-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-lg font-semibold ring-1 ring-inset ${days.includes(d) ? 'bg-zinc-900 text-white ring-zinc-900 dark:bg-white dark:text-zinc-900 dark:ring-white' : 'ring-zinc-300 dark:ring-zinc-600'}`}>
                 <input type="checkbox" className="sr-only" checked={days.includes(d)} onChange={(e) => s.set('expiry_warning_days', e.target.checked ? [...days, d].sort((a, b) => b - a).slice(0, 5) : days.filter((x) => x !== d))} />
                 {d}
               </label>
@@ -317,7 +317,7 @@ export function MessagingPanel() {
 
       <section>
         <h2 className="mb-1 text-lg font-bold">Templates</h2>
-        <p className="mb-3 text-sm text-slate-500">
+        <p className="mb-3 text-sm text-zinc-500">
           Variables: <code>{'{{business_name}} {{first_name}} {{card_masked}} {{balance}} {{amount}} {{kiosk_url}} {{expires_on}} {{days_left}}'}</code>
         </p>
         <div className="space-y-3">
@@ -325,10 +325,10 @@ export function MessagingPanel() {
             const e = { ...tpl, ...edits[tpl.id] };
             const changed = !!edits[tpl.id];
             return (
-              <details key={tpl.id} className="rounded-xl ring-1 ring-slate-200 dark:ring-slate-700">
+              <details key={tpl.id} className="rounded-lg ring-1 ring-zinc-200 dark:ring-zinc-700">
                 <summary className="flex min-h-[48px] cursor-pointer items-center justify-between px-4 font-semibold">
                   {tpl.key.replace(/_/g, ' ')} · {tpl.channel}
-                  {!e.active && <span className="text-sm text-slate-500">off</span>}
+                  {!e.active && <span className="text-sm text-zinc-500">off</span>}
                 </summary>
                 <div className="space-y-2 p-4 pt-0">
                   {tpl.channel === 'EMAIL' && (
@@ -359,7 +359,7 @@ export function LoyaltyPanel() {
   if (!s.value) return <SkeletonRows rows={2} />;
   return (
     <fieldset disabled={!s.canEdit} className="max-w-lg space-y-4">
-      <p className="text-slate-600 dark:text-slate-300">Lightweight loyalty: customers earn points when they pay with a gift card registered to them.</p>
+      <p className="text-zinc-600 dark:text-zinc-300">Lightweight loyalty: customers earn points when they pay with a gift card registered to them.</p>
       <Toggle label="Enable loyalty points" checked={s.value.enabled} onChange={(x) => s.set('enabled', x)} />
       <Field label="Points per $1 spent with a gift card" htmlFor="ly-p" hint={`Example: a ${formatCents(4500)} service earns ${45 * s.value.points_per_dollar} points.`}>
         <input id="ly-p" className={inputCls} inputMode="numeric" value={s.value.points_per_dollar} onChange={(e) => s.set('points_per_dollar', Math.min(100, Number(e.target.value.replace(/\D/g, '') || 0)))} />
