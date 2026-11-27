@@ -8,6 +8,7 @@ import { useToast } from '../../lib/toast';
 import type { MutationResult, Tag } from '../../lib/types';
 import { Button, Field, inputCls, Modal, StatusPill, TagChip } from '../../components/ui';
 import { AmountKeypad } from '../../components/Keypad';
+import { LimitReachedPanel } from '../../components/Feedback';
 import { applyResult } from './cache';
 import { useCardActions } from './CardActions';
 
@@ -29,6 +30,7 @@ export function IssueCardModal({ onClose, initialNumber = '' }: { onClose: () =>
   const [tagIds, setTagIds] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [limit, setLimit] = useState<{ tier?: string; limit?: number } | null>(null);
   const [done, setDone] = useState<MutationResult | null>(null);
   const key = useRef(uuid()); // stable across retries → no double-issue
   const tags = useQuery({ queryKey: ['tags'], queryFn: () => api<{ data: Tag[] }>('/tags'), enabled: more });
@@ -58,11 +60,13 @@ export function IssueCardModal({ onClose, initialNumber = '' }: { onClose: () =>
       });
       applyResult(qc, r);
       qc.invalidateQueries({ queryKey: ['cards'] });
+      qc.invalidateQueries({ queryKey: ['plan'] });
       setDone(r);
       if (me?.settings.printer.auto_print.issue) print(r.card.id, r.transaction?.id);
     } catch (e) {
       if (e instanceof ApiError) {
-        if (e.field === 'card_number' || e.code === 'STATE_CONFLICT' || e.code === 'DUPLICATE') setErrors({ number: e.message });
+        if (e.code === 'CARD_LIMIT_REACHED') setLimit({ tier: e.details?.plan, limit: e.details?.limit });
+        else if (e.field === 'card_number' || e.code === 'STATE_CONFLICT' || e.code === 'DUPLICATE') setErrors({ number: e.message });
         else if (e.field) setErrors({ [e.field.replace('customer.', '')]: e.message });
         else toast.push({ kind: 'error', title: 'Could not issue card', message: e.message });
         key.current = uuid();
@@ -71,6 +75,14 @@ export function IssueCardModal({ onClose, initialNumber = '' }: { onClose: () =>
       setBusy(false);
     }
   };
+
+  if (limit) {
+    return (
+      <Modal open onClose={onClose} title="Gift card limit reached" size="sm" footer={<Button onClick={onClose}>Close</Button>}>
+        <LimitReachedPanel tier={limit.tier} limit={limit.limit} />
+      </Modal>
+    );
+  }
 
   if (done) {
     return (

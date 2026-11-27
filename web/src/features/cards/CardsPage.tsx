@@ -13,6 +13,7 @@ import { AnimatedMoney, Button, EmptyState, Field, holderName, inputCls, Modal, 
 import { useCardActions } from './CardActions';
 import { CardMenu } from './CardMenu';
 import { lookupCard } from './RedeemModal';
+import { LimitReachedPanel, PLAN_NAME } from '../../components/Feedback';
 
 const CHIPS = [
   { key: 'all', label: 'All' },
@@ -130,6 +131,7 @@ export function CardsPage() {
               'Loading…'
             )}
           </p>
+          <PlanUsage />
         </div>
         <div className="flex flex-wrap gap-2">
           {/* On phones History is already in the bottom bar */}
@@ -397,5 +399,33 @@ function Row({ card: c, selected, onSelect }: { card: Card; selected: boolean; o
         <CardMenu card={c} />
       </td>
     </tr>
+  );
+}
+
+/** "12 of 50 gift cards used · Free plan" with a way to ask for more. */
+function PlanUsage() {
+  const q = useQuery({ queryKey: ['plan'], queryFn: () => api<{ tier: string; limit: number; used: number }>('/plan'), staleTime: 30_000 });
+  const [open, setOpen] = useState(false);
+  if (!q.data) return null;
+  const { tier, limit, used } = q.data;
+  const full = used >= limit;
+  const near = !full && used >= limit * 0.9;
+  return (
+    <>
+      <p className={`mt-1 text-sm ${full ? 'font-medium text-red-700 dark:text-red-400' : near ? 'font-medium text-amber-800 dark:text-amber-300' : 'text-zinc-500 dark:text-zinc-400'}`}>
+        <span className="tabular-nums">
+          {used.toLocaleString()} of {limit.toLocaleString()}
+        </span>{' '}
+        gift cards used · {PLAN_NAME[tier] ?? tier} plan
+        {full ? ' · limit reached' : ''}
+        {' · '}
+        <button type="button" onClick={() => setOpen(true)} className="font-semibold text-brand-700 underline-offset-2 hover:underline dark:text-brand-300">
+          Need more?
+        </button>
+      </p>
+      <Modal open={open} onClose={() => setOpen(false)} title={full ? 'Gift card limit reached' : 'Need more gift cards?'} size="sm">
+        <LimitReachedPanel tier={tier} limit={limit} used={used} />
+      </Modal>
+    </>
   );
 }

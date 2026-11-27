@@ -41,6 +41,11 @@ export const config = {
   signupPerHour: int(process.env.SIGNUP_PER_HOUR, 5),
   /** Platform admin (/platform). Empty = platform admin disabled. */
   platformAdminPassword: process.env.PLATFORM_ADMIN_PASSWORD ?? '',
+  /** Shown to salons that hit their plan limit (and in Feedback & support). */
+  support: {
+    email: process.env.SUPPORT_EMAIL ?? 'jimmyvu@unijv.com',
+    phone: process.env.SUPPORT_PHONE ?? '(346) 672-9523',
+  },
   twilio: {
     sid: process.env.TWILIO_ACCOUNT_SID ?? '',
     token: process.env.TWILIO_AUTH_TOKEN ?? '',

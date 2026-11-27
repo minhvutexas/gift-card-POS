@@ -99,6 +99,20 @@ BEGIN
 END $$;
 ALTER TABLE businesses ALTER COLUMN cid SET NOT NULL;
 
+-- Plan = how many gift cards a salon may keep. Set by the platform admin.
+--   FREE 50 · EXTRA 1,000 · PREMIER 10,000
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS plan VARCHAR(12) NOT NULL DEFAULT 'FREE';
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'businesses_plan_check') THEN
+    ALTER TABLE businesses ADD CONSTRAINT businesses_plan_check CHECK (plan IN ('FREE','EXTRA','PREMIER'));
+  END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION fn_card_limit(p_plan TEXT) RETURNS INT
+LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE p_plan WHEN 'PREMIER' THEN 10000 WHEN 'EXTRA' THEN 1000 ELSE 50 END
+$$;
+
 -- Platform-wide switches set by the platform admin (not per salon, no RLS).
 CREATE TABLE IF NOT EXISTS platform_settings (
   key         TEXT PRIMARY KEY,
@@ -830,6 +844,13 @@ BEGIN
   RETURN v_txn;
 END $$;
 
+-- 6.5b Plan usage: cards that count toward the salon's plan. Deleted cards and
+--      cards replaced as lost (their balance moved to a new card) don't count.
+CREATE OR REPLACE FUNCTION fn_card_usage() RETURNS INT
+LANGUAGE sql STABLE AS $$
+  SELECT count(*)::INT FROM gift_cards WHERE deleted_at IS NULL AND status <> 'LOST_REPLACED'
+$$;
+
 -- 6.6 Issue a card (optionally activate immediately with an ISSUE credit)
 CREATE OR REPLACE FUNCTION fn_issue_card(
   p_card_number     TEXT,
@@ -853,6 +874,7 @@ RETURNS gift_cards
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
   v_number TEXT := NULLIF(upper(trim(p_card_number)), '');
+  v_plan   TEXT;
   v_card   gift_cards;
   v_init   BIGINT := COALESCE(p_initial_cents, p_face_cents);
 BEGIN
@@ -872,6 +894,18 @@ BEGIN
   END IF;
   IF p_expires_at IS NOT NULL AND p_expires_at <= now() THEN
     RAISE EXCEPTION USING ERRCODE = 'GC400', MESSAGE = 'Expiry must be in the future';
+  END IF;
+
+  -- Plan limit (a lost-card replacement is exempt: it only moves a balance).
+  IF COALESCE(current_setting('gc.limit_exempt', true), '') <> 'on' THEN
+    -- one issuer at a time per salon, so two tills can't both take the last slot
+    PERFORM pg_advisory_xact_lock(424243, fn_current_business()::INT);
+    SELECT plan INTO v_plan FROM businesses WHERE id = fn_current_business();
+    IF fn_card_usage() >= fn_card_limit(v_plan) THEN
+      RAISE EXCEPTION USING ERRCODE = 'GC413',
+        MESSAGE = format('Card limit reached: the %s plan includes %s gift cards.', initcap(COALESCE(v_plan, 'FREE')), fn_card_limit(v_plan)),
+        DETAIL = json_build_object('plan', COALESCE(v_plan, 'FREE'), 'limit', fn_card_limit(v_plan), 'used', fn_card_usage())::TEXT;
+    END IF;
   END IF;
 
   IF v_number IS NULL THEN
@@ -1054,9 +1088,11 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = 'GC409', MESSAGE = 'Card has no balance to move — no replacement needed';
   END IF;
 
+  PERFORM set_config('gc.limit_exempt', 'on', true);
   v_new := fn_issue_card(p_new_number, (v_old.face_value * 100)::BIGINT, FALSE, NULL, v_old.customer_id,
                          v_old.label, v_old.color_tag, v_old.expires_at, v_old.pin_hash, 'POS', 'USER',
                          p_actor_id, p_terminal_id, p_ip, p_user_agent);
+  PERFORM set_config('gc.limit_exempt', '', true);
 
   v_out := fn_apply_txn(p_old_id, 'REPLACE_OUT', NULL, p_reason || ' → ' || v_new.card_number, NULL,
              'USER', p_actor_id, p_terminal_id, p_ip, p_user_agent,
@@ -1308,7 +1344,7 @@ BEGIN
     RAISE NOTICE 'Skipping demo seed'; RETURN;
   END IF;
 
-  INSERT INTO businesses (slug, name) VALUES ('amazing-salon', 'Amazing Salon')
+  INSERT INTO businesses (slug, name, plan) VALUES ('amazing-salon', 'Amazing Salon', 'PREMIER')
   ON CONFLICT (slug) DO NOTHING;
   SELECT id INTO v_bid FROM businesses WHERE slug = 'amazing-salon';
   PERFORM fn_seed_business(v_bid, 'Amazing Salon');

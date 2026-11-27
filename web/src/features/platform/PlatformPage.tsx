@@ -48,6 +48,9 @@ interface Salon {
   cid: string;
   slug: string;
   owner_username: string | null;
+  plan: 'FREE' | 'EXTRA' | 'PREMIER';
+  card_limit: number;
+  cards_counted: number;
   name: string;
   status: 'ACTIVE' | 'SUSPENDED';
   owner_email: string | null;
@@ -171,6 +174,11 @@ function Salons({ onLogout }: { onLogout: () => void }) {
     onError: (e) => setActionErr(e instanceof ApiError ? e.message : 'That didn’t work. Try again.'),
   });
 
+  const setPlan = useMutation({
+    mutationFn: ({ id, plan }: { id: number; plan: Salon['plan'] }) => papi(`/platform/businesses/${id}/plan`, { plan }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['platform-salons'] }),
+  });
+
   const rows = (list.data?.data ?? []).filter((s) => !filter || `${s.cid} ${s.name} ${s.slug} ${s.owner_email ?? ''} ${s.owner_username ?? ''}`.toLowerCase().includes(filter.toLowerCase()));
   const active = list.data?.data.filter((s) => s.status === 'ACTIVE').length ?? 0;
 
@@ -199,7 +207,7 @@ function Salons({ onLogout }: { onLogout: () => void }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl p-4">
+      <main className="mx-auto max-w-[1440px] p-4">
         <PlatformSettings />
         <div className="mb-4 max-w-sm">
           <label htmlFor="pf" className="mb-1 block text-sm font-semibold">
@@ -208,7 +216,12 @@ function Salons({ onLogout }: { onLogout: () => void }) {
           <input id="pf" className={inputCls} value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="CID, name, username or email" />
         </div>
 
-        {list.isLoading ? (
+        {setPlan.error && (
+          <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950/40 dark:text-red-200">
+            Couldn’t change the plan: {(setPlan.error as Error).message}
+          </p>
+        )}
+                {list.isLoading ? (
           <SkeletonRows rows={5} />
         ) : list.error ? (
           <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-800 dark:bg-red-950/40 dark:text-red-200">
@@ -223,14 +236,15 @@ function Salons({ onLogout }: { onLogout: () => void }) {
           </EmptyState>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-            <table className="w-full min-w-[980px] text-left text-sm">
+            <table className="w-full min-w-[1120px] text-left text-sm">
               <thead className="border-b border-zinc-200 text-zinc-600 dark:border-zinc-800 dark:text-zinc-300">
                 <tr>
                   <th className="px-4 py-3 font-semibold">CID</th>
                   <th className="px-4 py-3 font-semibold">Salon</th>
                   <th className="px-4 py-3 font-semibold">Owner username</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 text-right font-semibold">Cards</th>
+                  <th className="px-4 py-3 font-semibold">Plan</th>
+                  <th className="px-4 py-3 text-right font-semibold">Cards used</th>
                   <th className="px-4 py-3 text-right font-semibold">Outstanding</th>
                   <th className="px-4 py-3 font-semibold">Last activity</th>
                   <th className="px-4 py-3 font-semibold">Joined</th>
@@ -254,7 +268,25 @@ function Salons({ onLogout }: { onLogout: () => void }) {
                         {s.status === 'ACTIVE' ? 'Active' : 'Suspended'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums">{s.cards}</td>
+                    <td className="px-4 py-3">
+                      <label className="sr-only" htmlFor={`plan-${s.id}`}>
+                        Plan for {s.name}
+                      </label>
+                      <select
+                        id={`plan-${s.id}`}
+                        className="min-h-[40px] rounded-lg border-0 bg-white px-2 text-sm ring-1 ring-inset ring-zinc-300 focus:ring-2 focus:ring-brand-600 dark:bg-zinc-900 dark:ring-zinc-700"
+                        value={s.plan}
+                        disabled={setPlan.isPending && setPlan.variables?.id === s.id}
+                        onChange={(e) => setPlan.mutate({ id: s.id, plan: e.target.value as Salon['plan'] })}
+                      >
+                        <option value="FREE">Free · 50</option>
+                        <option value="EXTRA">Extra · 1,000</option>
+                        <option value="PREMIER">Premier · 10,000</option>
+                      </select>
+                    </td>
+                    <td className={`px-4 py-3 text-right tabular-nums ${s.cards_counted >= s.card_limit ? 'font-semibold text-red-700 dark:text-red-400' : ''}`}>
+                      {s.cards_counted.toLocaleString()} / {s.card_limit.toLocaleString()}
+                    </td>
                     <td className="px-4 py-3 text-right tabular-nums">{formatCents(Math.round(Number(s.outstanding) * 100))}</td>
                     <td className="px-4 py-3">{s.last_activity_at ? fmtDateTime(s.last_activity_at) : '—'}</td>
                     <td className="px-4 py-3">{fmtDate(s.created_at)}</td>

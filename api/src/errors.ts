@@ -1,3 +1,4 @@
+import { config } from './config.js';
 import type { ErrorRequestHandler } from 'express';
 import { ZodError } from 'zod';
 
@@ -33,6 +34,7 @@ const PG_MAP: Record<string, [number, string]> = {
   GC424: [422, 'CARD_VOIDED'],
   GC425: [409, 'IDEMPOTENCY_CONFLICT'],
   GC426: [409, 'ALREADY_REVERSED'],
+  GC413: [403, 'CARD_LIMIT_REACHED'],
 };
 
 export function fromPg(err: any): ApiError | null {
@@ -46,6 +48,11 @@ export function fromPg(err: any): ApiError | null {
       } catch {
         details = { detail: err.detail };
       }
+    }
+    if (err.code === 'GC413') {
+      // Plan limit: tell the salon how to get more room.
+      const { email, phone } = config.support;
+      return new ApiError(m[0], m[1], `${err.message} To add more cards, contact us: ${email} or ${phone}.`, undefined, { ...details, contact: { email, phone } });
     }
     return new ApiError(m[0], m[1], err.message, err.code === 'GC402' ? 'amount_cents' : undefined, details);
   }

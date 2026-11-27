@@ -13,6 +13,7 @@ import { ApiError, unauthorized } from '../errors.js';
 import { audit } from '../audit.js';
 import { invalidateBusiness } from '../tenant.js';
 import { getFeatures, setFeatures } from '../platform-settings.js';
+import { PLANS, PLAN_LIMIT } from '../plan.js';
 
 /**
  * Platform admin (the person running the server, not a salon). One password
@@ -67,6 +68,8 @@ router.get('/platform/businesses', async (_req, res) => {
       SELECT b.id, lpad(b.cid::text, 5, '0') AS cid, b.slug, b.name, b.status, b.owner_email, b.created_at,
              (SELECT count(*)::int FROM users u WHERE u.business_id = b.id AND u.active) AS users,
              (SELECT u.username FROM users u WHERE u.business_id = b.id AND u.role = 'OWNER' ORDER BY u.active DESC, u.id LIMIT 1) AS owner_username,
+             b.plan, fn_card_limit(b.plan) AS card_limit,
+             (SELECT count(*)::int FROM gift_cards c WHERE c.business_id = b.id AND c.deleted_at IS NULL AND c.status <> 'LOST_REPLACED') AS cards_counted,
              (SELECT count(*)::int FROM gift_cards c WHERE c.business_id = b.id AND c.deleted_at IS NULL) AS cards,
              (SELECT COALESCE(sum(c.balance), 0)::numeric(14,2) FROM gift_cards c
                WHERE c.business_id = b.id AND c.status IN ('ACTIVE','PARTIALUSED') AND c.deleted_at IS NULL) AS outstanding,
@@ -191,4 +194,14 @@ router.put('/platform/settings', async (req, res) => {
   const next = await setFeatures(b);
   console.warn(`[platform] settings changed from ${clientIp(req)}: ${JSON.stringify(b)}`);
   res.json(next);
+});
+
+/** Change a salon's plan (card limit): FREE 50 · EXTRA 1,000 · PREMIER 10,000. */
+router.post('/platform/businesses/:id/plan', async (req, res) => {
+  const id = bizId(req);
+  const { plan } = z.object({ plan: z.enum(PLANS) }).parse(req.body);
+  await mustExist(id);
+  const b = await runAsSystem(() => one(`UPDATE businesses SET plan = $2 WHERE id = $1 RETURNING id, slug, name, plan`, [id, plan]));
+  await runAsBusiness(id, () => audit(platformActor(req), 'business.plan_changed', { entityType: 'business', entityId: id, payload: { plan } }));
+  res.json({ ...b, card_limit: PLAN_LIMIT[plan] });
 });

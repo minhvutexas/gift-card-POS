@@ -9,7 +9,7 @@ export const SUPPORT = {
   phoneDisplay: '(346) 672-9523',
 };
 
-function ContactRow({ icon, label, value, href, actionLabel }: { icon: React.ReactNode; label: string; value: string; href: string; actionLabel: string }) {
+export function ContactRow({ icon, label, value, href, actionLabel }: { icon: React.ReactNode; label: string; value: string; href: string; actionLabel: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
@@ -39,6 +39,27 @@ function ContactRow({ icon, label, value, href, actionLabel }: { icon: React.Rea
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />} {copied ? 'Copied' : 'Copy'}
         </Button>
       </div>
+    </div>
+  );
+}
+
+export const PLAN_NAME: Record<string, string> = { FREE: 'Free', EXTRA: 'Extra', PREMIER: 'Premier' };
+
+/** Shown when a salon has used every gift card its plan allows. */
+export function LimitReachedPanel({ tier, limit, used }: { tier?: string; limit?: number; used?: number }) {
+  const full = used === undefined || used >= (limit ?? 50);
+  return (
+    <div className="space-y-3">
+      <p className="text-zinc-700 dark:text-zinc-200">
+        Your <strong>{PLAN_NAME[tier ?? 'FREE'] ?? tier} plan</strong> includes <strong>{(limit ?? 50).toLocaleString()} gift cards</strong>{full ? ', and they are all in use' : ` (${(used ?? 0).toLocaleString()} used)`}. To manage more cards, contact us to upgrade:
+      </p>
+      <ul className="text-sm text-zinc-600 dark:text-zinc-300">
+        <li>Extra: up to 1,000 gift cards</li>
+        <li>Premier: up to 10,000 gift cards</li>
+      </ul>
+      <ContactRow icon={<Mail className="h-4 w-4" aria-hidden />} label="Email" value={SUPPORT.email} href={`mailto:${SUPPORT.email}?subject=${encodeURIComponent('Gift Card POS: more gift cards')}`} actionLabel="Send email" />
+      <ContactRow icon={<Phone className="h-4 w-4" aria-hidden />} label="Hotline" value={SUPPORT.phoneDisplay} href={`tel:+1${SUPPORT.phone}`} actionLabel="Call" />
+      <p className="text-sm text-zinc-600 dark:text-zinc-300">Existing cards keep working: you can still redeem, reload and look them up.</p>
     </div>
   );
 }
