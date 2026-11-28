@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useSession } from './lib/session';
 import { Layout } from './components/Layout';
 import { ApprovalProvider } from './components/Approval';
@@ -13,6 +13,8 @@ import { KioskPage } from './features/kiosk/KioskPage';
 import { LockScreen, LoginPage } from './features/auth/LoginPage';
 import { SignupPage } from './features/signup/SignupPage';
 import { PlatformPage } from './features/platform/PlatformPage';
+import { LandingPage } from './features/landing/LandingPage';
+import { store } from './lib/api';
 
 /** Global keyboard shortcuts: Alt+N new card, Alt+R redeem. */
 function Shortcuts() {
@@ -32,8 +34,18 @@ function Shortcuts() {
   return null;
 }
 
+/** Has this device been used to sign in before (front desk or owner)? */
+function knownDevice() {
+  try {
+    return !!store.terminalKey || !!localStorage.getItem('gc.cid');
+  } catch {
+    return !!store.terminalKey;
+  }
+}
+
 function Staff() {
-  const { me, loading, locked } = useSession();
+  const { me, loading, locked, authError } = useSession();
+  const { pathname } = useLocation();
   if (loading)
     return (
       <div className="flex min-h-screen items-center justify-center" role="status">
@@ -41,7 +53,8 @@ function Staff() {
         <span className="sr-only">Loading</span>
       </div>
     );
-  if (!me) return <LoginPage />;
+  // New visitors at the home address see the intro page; everyone else signs in.
+  if (!me) return pathname === '/' && !authError && !knownDevice() ? <LandingPage /> : <LoginPage />;
   return (
     <ApprovalProvider>
       <CardActionsProvider>
@@ -65,6 +78,10 @@ function Staff() {
 
 /** Brand watermark — fixed lower-right, click-through, never printed (receipts print outside #root). */
 function Watermark() {
+  // Not on the public intro page: it has its own footer and the mark would sit over content.
+  const { me } = useSession();
+  const { pathname } = useLocation();
+  if (pathname === '/welcome' || (pathname === '/' && !me)) return null;
   return (
     <div
       aria-hidden
@@ -82,6 +99,7 @@ export function App() {
         <Route path="/kiosk" element={<KioskPage />} />
         <Route path="/k/:slug" element={<KioskPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/welcome" element={<LandingPage />} />
         <Route path="/platform" element={<PlatformPage />} />
         <Route path="/*" element={<Staff />} />
       </Routes>

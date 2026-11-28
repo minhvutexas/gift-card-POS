@@ -76,7 +76,9 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center p-4 bg-zinc-50 dark:bg-zinc-950">
       <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mb-4 text-center">
-          <Logo size="lg" className="mx-auto" />
+          <Link to="/welcome" aria-label="About Gift Card POS" className="mx-auto inline-flex">
+            <Logo size="lg" />
+          </Link>
           <h1 className="mt-3 text-xl font-semibold">{business.data?.name ?? 'Gift Card POS'}</h1>
           {business.data && <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">CID {business.data.cid}</p>}
           {authError === 'SESSION_EXPIRED' && <p className="mt-1 text-sm text-amber-700">Your session ended — please sign in again.</p>}
