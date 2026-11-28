@@ -1,14 +1,28 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ArrowRight, Check, CreditCard, History, Import, LayoutDashboard, Mail, Minus, Phone, ScanLine, ShieldCheck, Smartphone, Users, Wallet,
+  ArrowRight,
+  Check,
+  CreditCard,
+  History,
+  Import,
+  LayoutDashboard,
+  Mail,
+  Minus,
+  Phone,
+  ScanLine,
+  ShieldCheck,
+  Smartphone,
+  Users,
+  Wallet,
 } from 'lucide-react';
 import { Logo } from '../../components/Logo';
 import { SUPPORT } from '../../components/Feedback';
+import { PrintSection } from './PrintSection';
 
 /**
  * Public home (marketing route: Home / landing).
- * Nav → hero → fit check → features → how it works → plans → FAQ → CTA → footer.
+ * Nav → hero → fit check → features → how it works → plans → printed cards → FAQ → CTA → footer.
  * Bilingual: Vietnamese / English, following the visitor's phone language.
  */
 type Lang = 'vi' | 'en';
@@ -16,6 +30,7 @@ type Lang = 'vi' | 'en';
 const T = {
   vi: {
     signIn: 'Đăng nhập',
+    printNav: 'In thẻ',
     signUp: 'Đăng ký miễn phí',
     heroTitle: 'Quản lý gift card cho tiệm nail và tiệm làm đẹp',
     heroSub: 'Bán thẻ, trừ tiền và xem số dư ngay trên điện thoại hoặc iPad. Không cần cài app, không cần mua máy POS mới.',
@@ -66,6 +81,7 @@ const T = {
       ['Có cần cài app không?', 'Không. Mở giftcards.unijv.com trên trình duyệt của điện thoại, iPad hoặc máy tính là dùng được.'],
       ['Dữ liệu tiệm tôi có riêng tư không?', 'Có. Dữ liệu mỗi tiệm được tách riêng. Chỉ chủ tiệm và thợ của tiệm đó mới xem được.'],
       ['Khách làm mất thẻ thì sao?', 'Tìm thẻ theo tên hoặc số điện thoại khách, bấm Replace. Số dư chuyển sang thẻ mới, thẻ cũ bị khoá.'],
+      ['In thẻ nhựa mất bao lâu?', 'In xong trong 2–3 ngày làm việc, cộng thêm thời gian ship. Gửi logo hoặc mẫu thiết kế qua email để bắt đầu.'],
       ['Đến giới hạn 50 thẻ thì sao?', 'Thẻ đã bán vẫn dùng bình thường. Chỉ cần liên hệ để nâng gói khi muốn bán thêm thẻ mới.'],
     ],
     ctaTitle: 'Thử ngay cho tiệm của bạn',
@@ -77,6 +93,7 @@ const T = {
   },
   en: {
     signIn: 'Sign in',
+    printNav: 'Printed cards',
     signUp: 'Sign up free',
     heroTitle: 'Gift card management for nail and beauty salons',
     heroSub: 'Sell cards, redeem and check balances on a phone or iPad. No app to install, no new POS machine to buy.',
@@ -90,10 +107,7 @@ const T = {
       'Wants customers to check their own balance',
     ],
     fitNo: 'Maybe not yet if you need',
-    fitNoList: [
-      'To sell gift cards online and take card payments on the web',
-      'To deliver gift cards by email or text right now',
-    ],
+    fitNoList: ['To sell gift cards online and take card payments on the web', 'To deliver gift cards by email or text right now'],
     featuresTitle: 'Everything a salon needs to run gift cards',
     features: [
       ['Sell a card in seconds', 'Pick $25, $50, $100 or type an amount. Scan a card or get a number made for you. Print a receipt with a barcode.'],
@@ -125,7 +139,11 @@ const T = {
       ['Is it really free?', 'Yes. The Free plan has every feature, for up to 50 gift cards. Need more? Contact us about Extra or Premier.'],
       ['Do I need to install an app?', 'No. Open giftcards.unijv.com in the browser on a phone, iPad or computer.'],
       ['Is my salon’s data private?', 'Yes. Each salon’s data is kept separate. Only that salon’s owner and staff can see it.'],
-      ['What if a customer loses their card?', 'Find the card by the customer’s name or phone and tap Replace. The balance moves to a new card and the old one is blocked.'],
+      [
+        'What if a customer loses their card?',
+        'Find the card by the customer’s name or phone and tap Replace. The balance moves to a new card and the old one is blocked.',
+      ],
+      ['How long does card printing take?', 'Cards are printed in 2–3 business days, plus shipping. Email us your logo or design to start.'],
       ['What happens at 50 cards?', 'Cards you already sold keep working. Contact us to upgrade when you want to sell more.'],
     ],
     ctaTitle: 'Try it in your salon',
@@ -193,7 +211,16 @@ export function LandingPage() {
                 </button>
               ))}
             </div>
-            <Link to="/login" className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
+            <a
+              href="#print"
+              className="hidden min-h-[44px] items-center rounded-lg px-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 md:inline-flex dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              {t.printNav}
+            </a>
+            <Link
+              to="/login"
+              className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
               {t.signIn}
             </Link>
             <Link to="/signup" className={`${btnPrimary} hidden min-h-[44px] px-4 text-sm sm:inline-flex`}>
@@ -221,7 +248,13 @@ export function LandingPage() {
               <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">{t.heroNote}</p>
             </div>
             <div className="relative min-w-0">
-              <img src="/landing/app-cards.webp" alt={t.shotAlt} width={1280} height={600} className="w-full rounded-xl border border-zinc-200 shadow-sm dark:border-zinc-800" />
+              <img
+                src="/landing/app-cards.webp"
+                alt={t.shotAlt}
+                width={1280}
+                height={600}
+                className="w-full rounded-xl border border-zinc-200 shadow-sm dark:border-zinc-800"
+              />
               <img
                 src="/landing/app-phone.webp"
                 alt={t.phoneAlt}
@@ -276,7 +309,10 @@ export function LandingPage() {
                 const Icon = FEATURE_ICONS[i]!;
                 return (
                   <div key={title} className="min-w-0">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-zinc-800 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-800" aria-hidden>
+                    <span
+                      className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-zinc-800 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-800"
+                      aria-hidden
+                    >
                       <Icon className="h-5 w-5" />
                     </span>
                     <h3 className="mt-3 font-semibold">{title}</h3>
@@ -286,7 +322,14 @@ export function LandingPage() {
               })}
             </div>
             <div className="mt-10 grid items-start gap-6 md:grid-cols-[minmax(0,420px)_1fr]">
-              <img src="/landing/app-card.webp" alt="" width={576} height={380} loading="lazy" className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800" />
+              <img
+                src="/landing/app-card.webp"
+                alt=""
+                width={576}
+                height={380}
+                loading="lazy"
+                className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800"
+              />
               <div className="flex gap-3 self-center rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
                 <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300" aria-hidden />
                 <p className="text-zinc-700 dark:text-zinc-200">{t.faq[2]![1]}</p>
@@ -303,7 +346,10 @@ export function LandingPage() {
           <ol className="mt-6 grid gap-4 md:grid-cols-3">
             {t.steps.map(([title, body], i) => (
               <li key={title} className="rounded-xl border border-zinc-200 p-5 dark:border-zinc-800">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900 text-sm font-semibold text-white dark:bg-white dark:text-zinc-900" aria-hidden>
+                <span
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900 text-sm font-semibold text-white dark:bg-white dark:text-zinc-900"
+                  aria-hidden
+                >
                   {i + 1}
                 </span>
                 <h3 className="mt-3 font-semibold">{title}</h3>
@@ -322,7 +368,10 @@ export function LandingPage() {
             <p className="mt-2 text-zinc-600 dark:text-zinc-300">{t.plansSub}</p>
             <div className="mt-6 grid gap-4 md:grid-cols-3">
               {t.plans.map(([name, price, cards], i) => (
-                <div key={name} className={`flex flex-col rounded-xl border bg-white p-6 dark:bg-zinc-900 ${i === 0 ? 'border-zinc-900 dark:border-white' : 'border-zinc-200 dark:border-zinc-800'}`}>
+                <div
+                  key={name}
+                  className={`flex flex-col rounded-xl border bg-white p-6 dark:bg-zinc-900 ${i === 0 ? 'border-zinc-900 dark:border-white' : 'border-zinc-200 dark:border-zinc-800'}`}
+                >
                   <h3 className="font-semibold">{name}</h3>
                   <p className="mt-2 text-2xl font-semibold">{price}</p>
                   <p className="mt-1 text-zinc-600 dark:text-zinc-300">{cards}</p>
@@ -344,23 +393,27 @@ export function LandingPage() {
           </div>
         </section>
 
+        <PrintSection lang={lang} btnPrimary={btnPrimary} btnSecondary={btnSecondary} />
+
         {/* FAQ */}
-        <section aria-labelledby="faq" className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
-          <h2 id="faq" className="text-2xl font-semibold tracking-tight">
-            {t.faqTitle}
-          </h2>
-          <div className="mt-6 divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-            {t.faq.map(([q, a]) => (
-              <details key={q} className="group px-5">
-                <summary className="flex min-h-[56px] cursor-pointer list-none items-center justify-between gap-4 font-semibold">
-                  {q}
-                  <span className="text-zinc-400 transition-transform group-open:rotate-45" aria-hidden>
-                    +
-                  </span>
-                </summary>
-                <p className="pb-5 text-zinc-600 dark:text-zinc-300">{a}</p>
-              </details>
-            ))}
+        <section aria-labelledby="faq" className="border-t border-zinc-200 dark:border-zinc-800">
+          <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
+            <h2 id="faq" className="text-2xl font-semibold tracking-tight">
+              {t.faqTitle}
+            </h2>
+            <div className="mt-6 divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+              {t.faq.map(([q, a]) => (
+                <details key={q} className="group px-5">
+                  <summary className="flex min-h-[56px] cursor-pointer list-none items-center justify-between gap-4 font-semibold">
+                    {q}
+                    <span className="text-zinc-400 transition-transform group-open:rotate-45" aria-hidden>
+                      +
+                    </span>
+                  </summary>
+                  <p className="pb-5 text-zinc-600 dark:text-zinc-300">{a}</p>
+                </details>
+              ))}
+            </div>
           </div>
         </section>
 
